@@ -6,208 +6,188 @@
 <title>One Human</title>
 <link rel="icon" href="/logo.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-<meta name="theme-color" content="#FF6A13">
+<meta name="theme-color" content="#0B0B0C">
 <meta name="description" content="Everyone online controls one body. You get one part: a leg, an arm, the torso or the brain. Get the subject to the seat.">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="One Human">
 <meta property="og:title" content="One Human">
 <meta property="og:description" content="Everyone online controls one body. You get one part: a leg, an arm, the torso or the brain. Get the subject to the seat.">
 <meta property="og:url" content="https://one-human.vanshsoniofficial.workers.dev/">
-<meta property="og:image" content="https://one-human.vanshsoniofficial.workers.dev/og.png">
+<meta property="og:image" content="https://one-human.vanshsoniofficial.workers.dev/og.png?v=2">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="675">
-<meta property="og:image:alt" content="One Human: many people control one crash-test dummy body, each operating one limb, with a control panel and chat">
+<meta property="og:image:alt" content="One Human: many people control one body, each playing one limb, walking from the start line toward the goal">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="One Human">
 <meta name="twitter:description" content="Everyone online controls one body. You get one part: a leg, an arm, the torso or the brain. Get the subject to the seat.">
-<meta name="twitter:image" content="https://one-human.vanshsoniofficial.workers.dev/og.png">
+<meta name="twitter:image" content="https://one-human.vanshsoniofficial.workers.dev/og.png?v=2">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap">
 <style>
-  /* Theme: lab experiment. A white tiled test chamber, safety-orange hazard marks,
-     stencil-style condensed labels. One deliberate light look. */
+  /* Minimal dark. One quiet surface, hairline borders, generous space.
+     Color is reserved for the body parts (so you can find yours) and one accent for "live" and the goal. */
   :root {
-    --wall: #E9EDEF; --tile: #D6DDE1; --floor: #CBD3D8; --panel: #FFFFFF; --panel-2: #F3F5F6;
-    --ink: #15191C; --muted: #5E6A72; --dim: #9AA6AD; --line: #C9D1D6;
-    --hazard: #FF6A13; --hazard-ink: #15191C;
-    --leg: #2B6CDF; --arm: #C99212; --torso: #17936A; --brain: #7B4AD6; --head: #F2C230;
-    --display: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
-    --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
-    color-scheme: light;
+    --bg: #0B0B0C; --surface: #141416; --raised: #1C1C1F; --hover: #242428;
+    --line: #26262A; --line-strong: #3A3A40;
+    --text: #EDEDEF; --muted: #8B8B93; --faint: #5A5A61;
+    --accent: #FF6A3D;
+    --leg: #6AA8FF; --arm: #F2B65C; --torso: #5FD49A; --brain: #B79CFF; --head: #EDEDEF;
+    --sans: "Geist", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --mono: "Geist Mono", ui-monospace, Menlo, monospace;
+    --r: 12px;
+    color-scheme: dark;
   }
   * { box-sizing: border-box; }
-  html, body { margin: 0; height: 100%; background: var(--wall); color: var(--ink); font-family: var(--mono); font-size: 13px; overflow: hidden; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 14px; overflow: hidden; -webkit-font-smoothing: antialiased; }
   canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
-  .label { font-family: var(--display); font-weight: 700; font-size: 12.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
-  .panel { background: var(--panel); border: 1.5px solid var(--ink); border-radius: 4px; box-shadow: 3px 3px 0 rgba(21, 25, 28, .12); }
-  .hazard { background: repeating-linear-gradient(-45deg, var(--hazard) 0 10px, var(--hazard-ink) 10px 20px); }
-  button { font: 600 12px var(--mono); color: var(--ink); background: var(--panel-2); border: 1.5px solid var(--ink); border-radius: 3px; padding: 8px 12px; cursor: pointer; touch-action: none; user-select: none; -webkit-user-select: none; }
-  button:hover { background: #E4E9EC; }
-  button:active, button.held { background: var(--ink); color: #fff; }
-  button:focus-visible { outline: 3px solid var(--hazard); outline-offset: 2px; }
   [hidden] { display: none !important; }
-  .doclink { font-family: var(--mono); font-size: 12px; font-weight: 600; color: var(--ink); text-decoration: underline; text-decoration-color: var(--hazard); text-decoration-thickness: 2px; text-underline-offset: 3px; letter-spacing: 0; text-transform: none; }
-  .doclink:hover { color: var(--hazard); }
-  @media (max-width: 760px) { .brand .doclink { display: none; } }
+  .muted { color: var(--muted); }
+  .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  .panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); }
+  button { font: 500 13px var(--sans); color: var(--text); background: var(--raised); border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; cursor: pointer; touch-action: none; user-select: none; -webkit-user-select: none; transition: background .12s, border-color .12s; }
+  button:hover { background: var(--hover); border-color: var(--line-strong); }
+  button:active, button.held { background: var(--text); color: var(--bg); border-color: var(--text); }
+  button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  a { color: inherit; }
 
   /* top bar */
-  .topbar {
-    position: fixed; left: 0; right: 0; top: 0; z-index: 2;
-    display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 12px;
-    padding: max(10px, env(safe-area-inset-top)) 16px 10px; background: var(--panel); border-bottom: 1.5px solid var(--ink);
-  }
-  .topbar::after { content: ""; position: absolute; left: 0; right: 0; bottom: -8px; height: 6px; background: repeating-linear-gradient(-45deg, var(--hazard) 0 10px, var(--hazard-ink) 10px 20px); }
-  .brand { display: flex; align-items: baseline; gap: 12px; }
-  .brand .logo { align-self: center; width: 26px; height: 26px; margin-right: -4px; }
-  .brand b { font-family: var(--display); font-weight: 800; font-size: 22px; letter-spacing: .04em; text-transform: uppercase; }
-  .brand span { font-family: var(--display); font-weight: 700; font-size: 15px; letter-spacing: .1em; color: var(--muted); text-transform: uppercase; }
-  .live { color: var(--hazard); }
-  .live::before { content: "● "; animation: blink 1.4s steps(2, start) infinite; }
-  @keyframes blink { to { visibility: hidden; } }
-  .order { justify-self: center; text-align: center; padding: 5px 18px; border: 1.5px solid var(--brain); background: #F1ECFB; border-radius: 3px; }
-  .order.none { border-color: var(--line); background: var(--panel-2); }
-  .order b { font-family: var(--display); font-weight: 800; font-size: 19px; letter-spacing: .06em; color: var(--brain); }
-  .order.none b { color: var(--dim); font-size: 15px; }
-  .order small { display: block; color: var(--muted); font-size: 10.5px; }
-  .stats { justify-self: end; display: flex; gap: 20px; align-items: center; text-align: right; }
-  .stats b { font-family: var(--display); font-weight: 800; font-size: 20px; font-variant-numeric: tabular-nums; }
-  .help { color: var(--muted); font-size: 11.5px; }
-  .hp { width: 100px; height: 6px; background: var(--panel-2); border: 1px solid var(--ink); overflow: hidden; margin-top: 4px; margin-left: auto; }
+  .top { position: fixed; left: 0; right: 0; top: 0; z-index: 2; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 12px; padding: max(16px, env(safe-area-inset-top)) 20px 16px; }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .brand img { width: 22px; height: 22px; }
+  .brand b { font-weight: 600; font-size: 15px; letter-spacing: -.01em; }
+  .brand span { color: var(--muted); font-size: 13px; }
+  .order { justify-self: center; display: flex; align-items: center; gap: 10px; padding: 7px 14px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--brain) 45%, transparent); background: color-mix(in srgb, var(--brain) 10%, transparent); }
+  .order b { font-weight: 600; font-size: 13px; color: var(--brain); letter-spacing: .02em; }
+  .order small { color: var(--muted); font-size: 12px; }
+  .order.none { border-color: var(--line); background: transparent; }
+  .order.none b { color: var(--muted); font-weight: 500; }
+  .stats { justify-self: end; display: flex; align-items: center; gap: 18px; font-size: 13px; color: var(--muted); }
+  .stats b { color: var(--text); font-weight: 500; }
+  .live::before { content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); margin-right: 7px; vertical-align: 2px; box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent); }
+  .hp { width: 64px; height: 4px; border-radius: 2px; background: var(--raised); overflow: hidden; }
   .hp i { display: block; height: 100%; background: var(--torso); transition: width .3s, background .3s; }
   @media (max-width: 760px) {
-    .topbar { grid-template-columns: minmax(0, 1fr) auto; padding-inline: 12px; }
+    .top { grid-template-columns: minmax(0, 1fr) auto; padding-inline: 14px; }
     .order { grid-column: 1 / -1; grid-row: 2; }
-    .stats .goal, .stats #extra { display: none; }
-    .brand b { font-size: 19px; }
+    .stats .timer { display: none; }
   }
 
-  /* operator stations */
-  .seatmap { position: fixed; left: 16px; top: 96px; z-index: 2; padding: 12px 14px; width: 224px; display: grid; gap: 9px; }
-  .seatrow { display: grid; gap: 4px; }
-  .seatrow .head { display: flex; justify-content: space-between; font-family: var(--display); font-weight: 700; font-size: 14px; letter-spacing: .08em; }
-  .seatrow .loose { color: var(--hazard); font-family: var(--mono); font-weight: 600; font-size: 10.5px; letter-spacing: 0; }
-  .dots { display: flex; gap: 4px; flex-wrap: wrap; }
-  .dots i { width: 12px; height: 12px; border: 1.5px solid currentColor; opacity: .4; }
-  .dots i.taken { background: currentColor; opacity: .95; }
-  .dots i.idle { opacity: .55; }
-  .dots i.me { outline: 2px solid var(--hazard); outline-offset: 1px; opacity: 1; }
-  @media (max-width: 760px) { .seatmap { display: none; } .seatmap.open { display: grid; } }
-  #seatToggle { position: fixed; left: 16px; top: 124px; z-index: 2; display: none; }
-  @media (max-width: 760px) { #seatToggle { display: block; } .seatmap { top: 164px; } }
+  /* body map */
+  .map { position: fixed; left: 20px; top: 76px; z-index: 2; width: 200px; padding: 14px; display: grid; gap: 12px; }
+  .map .row { display: grid; gap: 6px; }
+  .map .head { display: flex; justify-content: space-between; font-size: 12.5px; }
+  .map .head span:last-child { color: var(--muted); font-family: var(--mono); font-size: 12px; }
+  .map .seats { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 3px; }
+  .map .seats i { height: 4px; border-radius: 2px; background: var(--raised); }
+  .map .seats i.on { background: currentColor; }
+  .map .seats i.idle { background: currentColor; opacity: .4; }
+  .map .seats i.me { background: var(--text); }
+  @media (max-width: 760px) { .map { display: none; } }
 
   /* control panel */
-  .dock {
-    position: fixed; left: 50%; transform: translateX(-50%); bottom: max(14px, env(safe-area-inset-bottom)); z-index: 2;
-    width: min(560px, calc(100vw - 24px)); padding: 14px 16px; display: grid; gap: 12px;
-  }
+  .dock { position: fixed; left: 50%; transform: translateX(-50%); bottom: max(16px, env(safe-area-inset-bottom)); z-index: 2; width: min(520px, calc(100vw - 24px)); padding: 16px; display: grid; gap: 14px; }
   .dock > * { min-width: 0; }
   .who { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
-  .who .role { font-family: var(--display); font-weight: 800; font-size: 26px; letter-spacing: .05em; line-height: 1; }
-  .who .name { color: var(--muted); }
-  .pull { position: relative; height: 12px; background: var(--panel-2); border: 1.5px solid var(--ink); }
-  .pull::after { content: ""; position: absolute; left: 50%; top: -4px; bottom: -4px; width: 1.5px; background: var(--ink); }
-  .pull i { position: absolute; top: -5px; width: 7px; height: 19px; margin-left: -3.5px; transition: left .08s linear; border: 1.5px solid var(--ink); }
-  .pull .mine { background: var(--hazard); z-index: 1; }
-  .pullkey { display: flex; justify-content: space-between; color: var(--muted); font-size: 11px; gap: 8px; }
-  .row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .who .role { font-weight: 600; font-size: 20px; letter-spacing: -.01em; }
+  .who .meta { color: var(--muted); font-size: 12.5px; }
+  .pull { position: relative; height: 6px; border-radius: 3px; background: var(--raised); }
+  .pull::after { content: ""; position: absolute; left: 50%; top: -5px; bottom: -5px; width: 1px; background: var(--line-strong); }
+  .pull i { position: absolute; top: 50%; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%; transition: left .08s linear; }
+  .pull .mine { background: var(--text); z-index: 1; box-shadow: 0 0 0 3px var(--surface); }
+  .pullkey { display: flex; justify-content: space-between; color: var(--muted); font-size: 12px; gap: 8px; }
+  .row { display: flex; gap: 8px; align-items: center; }
   .row .grow { flex: 1; }
-  .big { font-size: 18px; padding: 10px 22px; }
+  .big { font-size: 16px; width: 56px; height: 44px; padding: 0; }
   .brainpad { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
-  .brainpad button { white-space: normal; line-height: 1.25; }
-  .brainpad button.on { background: var(--brain); color: #fff; border-color: var(--brain); }
-  .emotes { display: flex; gap: 6px; flex-wrap: wrap; border-top: 1.5px dashed var(--line); padding-top: 10px; align-items: center; }
-  .emotes .label { margin-right: 4px; }
-  .emotes button { padding: 5px 10px; font-size: 11.5px; }
+  .brainpad button { padding: 9px 8px; }
+  .brainpad button.on { background: var(--brain); color: var(--bg); border-color: var(--brain); }
+  .brainpad kbd { font-family: var(--mono); font-size: 11px; color: var(--faint); margin-right: 6px; }
+  .brainpad button.on kbd { color: var(--bg); opacity: .6; }
+  .shouts { display: flex; gap: 6px; flex-wrap: wrap; border-top: 1px solid var(--line); padding-top: 12px; }
+  .shouts button { padding: 5px 11px; font-size: 12px; border-radius: 999px; }
+  .shouts button span { color: var(--accent); margin-left: 4px; font-family: var(--mono); }
   @media (max-width: 480px) {
     .brainpad { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .brainpad button, .emotes button { font-size: 11px; padding: 6px 8px; }
-    .dock { padding: 12px; gap: 10px; }
-    .who .role { font-size: 22px; }
-    .big { padding: 8px 18px; }
+    .dock { padding: 14px; gap: 12px; }
   }
 
   /* cards */
   .overlay { position: fixed; inset: 0; z-index: 5; display: grid; place-items: center; padding: 20px; pointer-events: none; }
-  .overlay.block { pointer-events: auto; background: rgba(233, 237, 239, .72); }
-  .card { background: var(--panel); border: 2px solid var(--ink); border-radius: 4px; box-shadow: 6px 6px 0 rgba(21, 25, 28, .15); padding: 0; text-align: center; max-width: min(540px, calc(100vw - 40px)); overflow: hidden; }
-  .card .stripe { height: 10px; }
-  .card .body { padding: 24px clamp(18px, 5vw, 32px) 26px; display: grid; gap: 10px; justify-items: center; }
-  .card h1, .card h2 { font-family: var(--display); font-weight: 800; text-transform: uppercase; margin: 0; line-height: .95; letter-spacing: .02em; }
-  .card h1 { font-size: clamp(48px, 11vw, 78px); }
-  .card h2 { font-size: clamp(30px, 7vw, 44px); }
-  .card p { margin: 0; color: var(--muted); max-width: min(44ch, 100%); line-height: 1.55; }
-  .tag { font-family: var(--display); font-weight: 700; font-size: 14px; letter-spacing: .14em; text-transform: uppercase; }
-  .cta { font: 800 20px var(--display); letter-spacing: .1em; text-transform: uppercase; background: var(--hazard); color: var(--ink); border: 2px solid var(--ink); padding: 12px 30px; margin-top: 6px; box-shadow: 3px 3px 0 var(--ink); }
-  .cta:hover { background: #FF7F33; }
-  .cta:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--ink); background: var(--hazard); color: var(--ink); }
-  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 6px; text-align: left; width: 100%; }
-  .steps div { font-size: 11.5px; color: var(--muted); line-height: 1.45; border-top: 1.5px solid var(--ink); padding-top: 6px; }
-  .steps b { display: block; color: var(--ink); font-family: var(--display); font-weight: 700; font-size: 14px; letter-spacing: .06em; text-transform: uppercase; margin-bottom: 2px; }
-  @media (max-width: 480px) { .steps { grid-template-columns: 1fr; } }
-  .upbar { width: 260px; max-width: 70vw; height: 12px; border: 1.5px solid var(--ink); background: var(--panel-2); }
-  .upbar i { display: block; height: 100%; background: var(--torso); }
-  .toast { position: fixed; left: 50%; top: 104px; transform: translateX(-50%); z-index: 4; padding: 7px 14px; pointer-events: none; font-weight: 600; }
-  @media (prefers-reduced-motion: reduce) { .live::before { animation: none; } }
+  .overlay.block { pointer-events: auto; background: rgba(11, 11, 12, .72); backdrop-filter: blur(6px); }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 28px; max-width: min(440px, calc(100vw - 40px)); display: grid; gap: 14px; text-align: center; justify-items: center; box-shadow: 0 20px 60px rgba(0, 0, 0, .5); }
+  .card h1 { margin: 0; font-size: 34px; font-weight: 700; letter-spacing: -.03em; }
+  .card h2 { margin: 0; font-size: 24px; font-weight: 600; letter-spacing: -.02em; }
+  .card p { margin: 0; color: var(--muted); line-height: 1.55; max-width: 36ch; }
+  .card .eyebrow { font-size: 12.5px; color: var(--muted); }
+  .steps { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 8px; text-align: left; width: 100%; }
+  .steps li { display: grid; grid-template-columns: 22px 1fr; gap: 10px; color: var(--muted); font-size: 13.5px; line-height: 1.45; }
+  .steps li b { color: var(--text); font-weight: 500; }
+  .steps li::before { content: counter(s); counter-increment: s; font-family: var(--mono); font-size: 12px; color: var(--faint); border: 1px solid var(--line); border-radius: 6px; height: 22px; display: grid; place-items: center; }
+  .steps { counter-reset: s; }
+  .cta { width: 100%; height: 44px; font-size: 15px; font-weight: 600; background: var(--text); color: var(--bg); border-color: var(--text); margin-top: 6px; }
+  .cta:hover { background: #FFFFFF; border-color: #FFFFFF; }
+  .link { font-size: 13px; color: var(--muted); text-decoration: none; }
+  .link:hover { color: var(--text); }
+  .upbar { width: 100%; height: 6px; border-radius: 3px; background: var(--raised); overflow: hidden; }
+  .upbar i { display: block; height: 100%; background: var(--torso); transition: width .1s; }
+  .toast { position: fixed; left: 50%; top: 72px; transform: translateX(-50%); z-index: 4; padding: 8px 14px; font-size: 13px; pointer-events: none; }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
 
-<header class="topbar">
-  <div class="brand"><img class="logo" src="/logo.svg" alt="" width="26" height="26"><b>One Human</b><span>Subject #<span id="life">1</span></span><a class="doclink" href="/docs">How it's built</a></div>
-  <div class="order none" id="order"><b id="brainCmd">NO DIRECTIVE</b><small id="brainVotes">the control room is empty</small></div>
+<header class="top">
+  <div class="brand"><img src="/logo.svg" alt="" width="22" height="22"><b>One Human</b><span>Life <span id="life" class="mono">1</span></span></div>
+  <div class="order none" id="order"><b id="brainCmd">No brain yet</b><small id="brainVotes"></small></div>
   <div class="stats">
-    <div class="goal"><div class="label">Objective: reach the seat</div><b id="timer">0:00</b> <span class="help">record <span id="best">—</span></span></div>
-    <div class="people"><div class="label live">Operators</div><b id="players">0</b> <span class="help" id="extra"></span><div class="hp" title="Subject integrity"><i id="health" style="width:100%"></i></div></div>
+    <span class="timer"><b id="timer" class="mono">0:00</b> · best <span id="best" class="mono">—</span></span>
+    <span class="live"><b id="players" class="mono">0</b> playing<span id="extra"></span></span>
+    <span class="hp" title="Health"><i id="health" style="width:100%"></i></span>
   </div>
 </header>
 
-<button id="seatToggle" type="button">Stations</button>
-<aside class="panel seatmap" id="seatmap" aria-label="Operator stations"></aside>
+<aside class="panel map" id="seatmap" aria-label="Who controls what"></aside>
 
 <section class="panel dock" id="dock" hidden>
   <div class="who">
-    <div><span class="role" id="myRole"></span></div>
-    <div class="name">operator <span id="myName"></span> · reassigned in <span id="rotate">60</span>s</div>
+    <span class="role" id="myRole"></span>
+    <span class="meta"><span id="myName"></span> · new part in <span id="rotate" class="mono">60</span>s</span>
   </div>
-  <div id="limbUi" style="display:grid;gap:8px">
+  <div id="limbUi" style="display:grid;gap:10px">
     <div class="pull"><i class="group" id="groupMark" style="left:50%"></i><i class="mine" id="myMark" style="left:50%"></i></div>
-    <div class="pullkey"><span id="keyLeft">◀ A</span><span><b style="color:var(--hazard)">■</b> you &nbsp; <b id="groupKey">■</b> your station · <span id="agree"></span></span><span id="keyRight">D ▶</span></div>
+    <div class="pullkey"><span id="keyLeft">A · back</span><span id="agree"></span><span id="keyRight">forward · D</span></div>
     <div class="row">
-      <button type="button" class="big" data-hold="-1" aria-label="Push back">◀</button>
-      <button type="button" class="big" data-hold="1" aria-label="Push forward">▶</button>
+      <button type="button" class="big" data-hold="-1" aria-label="Push back">←</button>
+      <button type="button" class="big" data-hold="1" aria-label="Push forward">→</button>
       <span class="grow"></span>
-      <button type="button" data-up aria-label="Help the subject get up">GET UP · space</button>
+      <button type="button" data-up aria-label="Help it get up">Get up <span class="muted mono">space</span></button>
     </div>
   </div>
-  <div id="brainUi" hidden style="display:grid;gap:8px">
-    <div class="help">Control room view: you see the seat and the route. The body can't. Issue directives (keys 1–9).</div>
+  <div id="brainUi" hidden style="display:grid;gap:10px">
+    <div class="muted" style="font-size:12.5px">Only you can see the chair. Tell the body what to do.</div>
     <div class="brainpad" id="brainpad"></div>
   </div>
-  <div id="queueUi" hidden class="help"></div>
-  <div class="emotes" id="emotes"><span class="label">Comms</span></div>
+  <div id="queueUi" hidden class="muted"></div>
+  <div class="shouts" id="emotes"></div>
 </section>
 
 <div class="overlay block" id="landing">
   <div class="card">
-    <div class="stripe hazard"></div>
-    <div class="body">
-      <div class="tag live">Live trial · <span id="landingCount">0</span> operators connected</div>
-      <img src="/logo.svg" alt="" width="64" height="64">
+    <img src="/logo.svg" alt="" width="44" height="44">
     <h1>One Human</h1>
-      <p>Experiment: can strangers on the internet operate one human body together? You'll be assigned one part. Get the subject to the seat.</p>
-      <div class="steps">
-        <div><b>1 · Get assigned</b>A leg, an arm, the torso, or the brain.</div>
-        <div><b>2 · Operate together</b>Your station's average input moves the limb.</div>
-        <div><b>3 · Follow directives</b>Only the brain can see the seat.</div>
-      </div>
-      <button class="cta" id="join" type="button">Enter the lab</button>
-      <a class="doclink" href="/docs">Read how it's built</a>
-    </div>
+    <p>Everyone here controls the same body. You get one part. Together, get it to sit on the chair.</p>
+    <ol class="steps">
+      <li><span><b>You get a part.</b> A leg, an arm, the torso or the brain.</span></li>
+      <li><span><b>Your group's average moves it.</b> Push with them, not against them.</span></li>
+      <li><span><b>Only the brain sees the chair.</b> Follow its orders.</span></li>
+    </ol>
+    <button class="cta" id="join" type="button">Play</button>
+    <span class="eyebrow"><span class="live"><span id="landingCount" class="mono">0</span> playing now</span> · <a class="link" href="/docs">How it works</a></span>
   </div>
 </div>
-<div class="overlay" id="overlay" hidden><div class="card"><div class="stripe hazard"></div><div class="body" id="overlayCard"></div></div></div>
+<div class="overlay" id="overlay" hidden><div class="card" id="overlayCard"></div></div>
 <div class="panel toast" id="toast" hidden></div>
 
 <script src="client.js"></script>

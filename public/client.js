@@ -2,15 +2,16 @@
 (() => {
   const PARTS = ['L_LEG', 'R_LEG', 'L_ARM', 'R_ARM', 'TORSO'];
   const ROLE_INFO = {
-    L_LEG: { label: 'LEFT LEG', color: '--leg', back: 'swing back', fwd: 'swing forward' },
-    R_LEG: { label: 'RIGHT LEG', color: '--leg', back: 'swing back', fwd: 'swing forward' },
-    L_ARM: { label: 'LEFT ARM', color: '--arm', back: 'down', fwd: 'up' },
-    R_ARM: { label: 'RIGHT ARM', color: '--arm', back: 'down', fwd: 'up' },
-    TORSO: { label: 'TORSO', color: '--torso', back: 'lean back', fwd: 'lean forward' },
-    BRAIN: { label: 'BRAIN', color: '--brain', back: '', fwd: '' },
+    L_LEG: { label: 'Left leg', color: '--leg', back: 'swing back', fwd: 'swing forward' },
+    R_LEG: { label: 'Right leg', color: '--leg', back: 'swing back', fwd: 'swing forward' },
+    L_ARM: { label: 'Left arm', color: '--arm', back: 'down', fwd: 'up' },
+    R_ARM: { label: 'Right arm', color: '--arm', back: 'down', fwd: 'up' },
+    TORSO: { label: 'Torso', color: '--torso', back: 'lean back', fwd: 'lean forward' },
+    BRAIN: { label: 'Brain', color: '--brain', back: '', fwd: '' },
   };
   const BRAIN_COMMANDS = ['WALK_RIGHT', 'WALK_LEFT', 'STOP', 'LEFT_LEG_NOW', 'RIGHT_LEG_NOW', 'LEAN_FORWARD', 'LEAN_BACK', 'GET_UP', 'SIT'];
   const EMOTES = ['GO', 'STOP', 'LEFT', 'RIGHT', 'WAIT'];
+  const nice = (s) => s.charAt(0) + s.slice(1).toLowerCase().replaceAll('_', ' '); // WALK_RIGHT -> Walk right
 
   // Must match server/src/ragdoll.ts BODY_NAMES order and sizes.
   const BODIES = [
@@ -35,7 +36,7 @@
   const $ = (id) => document.getElementById(id);
   const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
   const colors = {};
-  for (const n of ['--leg', '--arm', '--torso', '--brain', '--head', '--hazard', '--hazard-ink', '--ink', '--muted', '--dim', '--line', '--wall', '--tile', '--floor', '--panel']) colors[n] = css(n);
+  for (const n of ['--leg', '--arm', '--torso', '--brain', '--head', '--bg', '--surface', '--raised', '--line', '--line-strong', '--text', '--muted', '--faint', '--accent']) colors[n] = css(n);
 
   const me = { id: null, name: '', role: null, joined: false, axis: 0, up: false, brainCmd: null, life: undefined };
   let chairX = 5;
@@ -107,21 +108,20 @@
     $('brainUi').hidden = role !== 'BRAIN';
     $('queueUi').hidden = !!role;
     if (!role) {
-      $('myRole').textContent = 'STANDBY';
+      $('myRole').textContent = 'In line';
       $('myRole').style.color = '';
-      $('queueUi').textContent = `Every operator station is taken. You are #${queue} on standby and get the next free station.`;
+      $('queueUi').textContent = `All spots are taken. You're #${queue} in line and get the next free part.`;
       return;
     }
     const c = colors[info.color];
     $('myRole').textContent = info.label;
     $('myRole').style.color = c;
     $('groupMark').style.background = c;
-    $('groupKey').style.color = c;
-    $('keyLeft').textContent = `◀ A · ${info.back}`;
-    $('keyRight').textContent = `${info.fwd} · D ▶`;
+    $('keyLeft').textContent = `A · ${info.back}`;
+    $('keyRight').textContent = `${info.fwd} · D`;
     renderBrainPad();
-    const help = role === 'BRAIN' ? 'Control room. You see the seat. Nobody else does. Issue directives.' : `A / ◀ ${info.back} · D / ▶ ${info.fwd}`;
-    showOverlay(`<div class="label">Assignment</div><h2 style="color:${c}">${info.label}</h2><p>${help}</p>`, 2200);
+    const help = role === 'BRAIN' ? 'Only you can see the chair. Tell the body what to do.' : `A or ← to ${info.back}. D or → to ${info.fwd}.`;
+    showOverlay(`<span class="eyebrow">Your part</span><h2 style="color:${c}">${info.label}</h2><p>${help}</p>`, 2000);
   }
 
   // ---------------- input ----------------
@@ -185,7 +185,7 @@
     BRAIN_COMMANDS.forEach((cmd, i) => {
       const b = document.createElement('button');
       b.type = 'button';
-      b.textContent = `${i + 1} ${cmd.replaceAll('_', ' ')}`;
+      b.innerHTML = `<kbd>${i + 1}</kbd>${nice(cmd)}`;
       b.className = me.brainCmd === cmd ? 'on' : '';
       b.onclick = () => chooseBrain(cmd);
       pad.appendChild(b);
@@ -203,12 +203,11 @@
   EMOTES.forEach((e) => {
     const b = document.createElement('button');
     b.type = 'button';
-    b.innerHTML = `${e}<span data-e="${e}"></span>`;
+    b.innerHTML = `${nice(e)}<span data-e="${e}"></span>`;
     b.onclick = () => send({ t: 'emote', e });
     emoteBox.appendChild(b);
   });
 
-  $('seatToggle').onclick = () => $('seatmap').classList.toggle('open');
   $('join').onclick = () => send({ t: 'join' });
 
   // ---------------- HUD ----------------
@@ -223,40 +222,39 @@
     $('players').textContent = m.players;
     $('landingCount').textContent = m.players;
     const extra = [];
-    if (m.queue) extra.push(`${m.queue} on standby`);
-    if (m.watching) extra.push(`${m.watching} observing`);
-    $('extra').textContent = extra.join(' · ');
+    if (m.queue) extra.push(`${m.queue} in line`);
+    if (m.watching) extra.push(`${m.watching} watching`);
+    $('extra').textContent = extra.length ? ` · ${extra.join(' · ')}` : '';
     $('rotate').textContent = Math.ceil(m.nextRotateMs / 1000);
     $('life').textContent = m.life;
     $('health').style.width = `${m.health}%`;
-    $('health').style.background = m.health > 50 ? 'var(--torso)' : m.health > 20 ? 'var(--arm)' : 'var(--hazard)';
+    $('health').style.background = m.health > 50 ? 'var(--torso)' : m.health > 20 ? 'var(--arm)' : 'var(--accent)';
     $('timer').textContent = fmt(m.objective.ms);
     $('best').textContent = m.best == null ? '—' : fmt(m.best);
 
     const hasBrain = !!m.brain.cmd;
     $('order').classList.toggle('none', !hasBrain);
-    $('brainCmd').textContent = hasBrain ? m.brain.cmd.replaceAll('_', ' ') : 'NO DIRECTIVE';
-    $('brainVotes').textContent = hasBrain ? `directive · ${m.brain.votes} of ${m.brain.of} brains agree` : 'the control room is empty';
+    $('brainCmd').textContent = hasBrain ? nice(m.brain.cmd) : 'No brain yet';
+    $('brainVotes').textContent = hasBrain && m.brain.of > 1 ? `${m.brain.votes}/${m.brain.of} brains` : '';
 
     document.querySelectorAll('[data-e]').forEach((el) => {
       const n = m.emotes[el.dataset.e];
-      el.textContent = n ? ` ×${n}` : '';
+      el.textContent = n ? n : '';
     });
-    if (me.role && me.role !== 'BRAIN') $('agree').textContent = `${Math.round(m.agreement[me.role] * 100)}% agree`;
+    if (me.role && me.role !== 'BRAIN') $('agree').textContent = `group ${Math.round(m.agreement[me.role] * 100)}% in sync`;
 
-    // Body map: one dot per seat. Filled = a person, hollow = empty seat.
-    let html = '<div class="label">Operator stations</div>';
+    // Body map: one bar per seat. Bright = a player, dim = idle, empty = free seat, white = you.
+    let html = '';
     for (const role of ['BRAIN', 'TORSO', 'L_ARM', 'R_ARM', 'L_LEG', 'R_LEG']) {
       const people = m.roster.filter((r) => r.role === role);
       const info = ROLE_INFO[role];
-      let dots = '';
+      let seats = '';
       for (let i = 0; i < m.seats[role]; i++) {
         const p = people[i];
-        const cls = !p ? '' : `taken${p.active ? '' : ' idle'}${p.id === me.id ? ' me' : ''}`;
-        dots += `<i class="${cls}" title="${p ? esc(p.name) + (p.id === me.id ? ' (you)' : '') : 'empty seat'}"></i>`;
+        const cls = !p ? '' : p.id === me.id ? 'me' : p.active ? 'on' : 'idle';
+        seats += `<i class="${cls}" title="${p ? esc(p.name) + (p.id === me.id ? ' (you)' : '') : 'free'}"></i>`;
       }
-      const loose = people.length ? '' : `<span class="loose">${role === 'BRAIN' ? 'empty' : 'unmanned'}</span>`;
-      html += `<div class="seatrow"><div class="head"><span style="color:${colors[info.color]}">${info.label}</span>${loose || `<span class="help">${people.length}/${m.seats[role]}</span>`}</div><div class="dots" style="color:${colors[info.color]}">${dots}</div></div>`;
+      html += `<div class="row"><div class="head"><span>${info.label}</span><span>${people.length}/${m.seats[role]}</span></div><div class="seats" style="color:${colors[info.color]}">${seats}</div></div>`;
     }
     $('seatmap').innerHTML = html;
   }
@@ -278,7 +276,7 @@
   function updateFallOverlay(snap) {
     if (snap.f) {
       fallShown = true;
-      showOverlay(`<div class="label">All operators</div><h2>Subject down</h2><p>Hold SPACE (or GET UP) together to stand the subject up.</p><div class="upbar"><i style="width:${Math.round(snap.up * 100)}%"></i></div>`);
+      showOverlay(`<span class="eyebrow">Everyone</span><h2>It fell over</h2><p>Hold Space together to stand it back up.</p><div class="upbar"><i style="width:${Math.round(snap.up * 100)}%"></i></div>`);
     } else if (fallShown) {
       fallShown = false;
       $('overlay').hidden = true;
@@ -293,13 +291,13 @@
   }
   function onEvent(e) {
     if (e.kind === 'death') {
-      showOverlay(`<div class="label">Subject #${e.life} · survived ${fmt(e.ms)}</div><h2>Subject lost</h2><p>The internet killed the human. Cause: ${esc(e.cause)}. Subject #${e.life + 1} enters the chamber in 5 seconds.</p>`, 5000);
+      showOverlay(`<span class="eyebrow">Life ${e.life} · lasted ${fmt(e.ms)}</span><h2>The human died</h2><p>It ${esc(e.cause)}. Life ${e.life + 1} starts in 5 seconds.</p>`, 5000);
     } else if (e.kind === 'sit') {
-      showOverlay(`<div class="label">${e.record ? 'New lab record' : 'Trial complete'}</div><h2>Seated in ${fmt(e.ms)}</h2><p>${e.players} ${e.players === 1 ? 'operator' : 'operators'} did this together.</p>`, 3000);
+      showOverlay(`<span class="eyebrow">${e.record ? 'New record' : 'Done'}</span><h2>Sat down in ${fmt(e.ms)}</h2><p>${e.players} ${e.players === 1 ? 'person' : 'people'} did this together.</p>`, 3000);
     } else if (e.kind === 'hit') {
-      toast(`Impact detected · integrity ${e.health}%`);
+      toast(`Ouch · health ${e.health}%`);
     } else if (e.kind === 'getup') {
-      toast('Subject is back on its feet');
+      toast('Back on its feet');
     } else if (e.kind === 'newlife') {
       // New subject: drop held keys so it starts from rest. Players press again.
       me.life = e.life;
@@ -307,7 +305,7 @@
       held.clear();
       document.querySelectorAll('.held').forEach((b) => b.classList.remove('held'));
       pushInput();
-      toast(`Subject #${e.life} enters the chamber`);
+      toast(`Life ${e.life} begins`);
     }
   }
 
@@ -347,21 +345,20 @@
     requestAnimationFrame(frame);
     const b = sample();
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.fillStyle = colors['--wall'];
+    ctx.fillStyle = colors['--bg'];
     ctx.fillRect(0, 0, W, H);
     if (!b) return;
 
     const isBrain = me.role === 'BRAIN';
     const wide = isBrain || !me.role;
-    // Brains and observers see the whole chamber. Body operators see a close-up.
+    // The brain and people watching see the whole room. Body players see a close-up.
     // Keep the floor above the control panel so the feet are always visible.
     const dock = $('dock');
     const dockTop = dock.hidden ? H : dock.getBoundingClientRect().top;
-    const groundY = Math.min(H * 0.8, dockTop - 28);
-    const topSpace = W < 760 ? 130 : 90;
-    // meters visible above the floor, and across the screen
-    const viewUp = wide ? 2.8 : 2.2;
-    const viewAcross = wide ? 7 : 3.4;
+    const groundY = Math.min(H * 0.78, dockTop - 32);
+    const topSpace = W < 760 ? 120 : 80;
+    const viewUp = wide ? 2.8 : 2.2; // meters visible above the floor
+    const viewAcross = wide ? 7 : 3.4; // meters visible across
     const scale = Math.max(40, Math.min((groundY - topSpace) / viewUp, W / viewAcross));
     const pelvisX = b[2 * 3];
     const focusX = wide ? (pelvisX + chairX) / 2 : pelvisX;
@@ -370,77 +367,53 @@
     const sy = (y) => groundY - y * scale;
     const left = camX - W / 2 / scale, right = camX + W / 2 / scale;
 
-    // wall tiles, 0.5 m
-    ctx.strokeStyle = colors['--tile'];
+    // floor: one hairline, a soft fade below, and quiet meter marks
+    const fade = ctx.createLinearGradient(0, sy(0), 0, H);
+    fade.addColorStop(0, 'rgba(255, 255, 255, 0.035)');
+    fade.addColorStop(1, 'rgba(255, 255, 255, 0)');
+    ctx.fillStyle = fade;
+    ctx.fillRect(0, sy(0), W, H - sy(0));
+    ctx.strokeStyle = colors['--line-strong'];
     ctx.lineWidth = 1;
     ctx.beginPath();
-    for (let x = Math.floor(left * 2) / 2; x <= right; x += 0.5) { ctx.moveTo(sx(x), 0); ctx.lineTo(sx(x), sy(0)); }
-    for (let y = 0.5; sy(y) > 0; y += 0.5) { ctx.moveTo(0, sy(y)); ctx.lineTo(W, sy(y)); }
+    ctx.moveTo(0, Math.round(sy(0)) + 0.5);
+    ctx.lineTo(W, Math.round(sy(0)) + 0.5);
     ctx.stroke();
-
-    // stencil signs on the wall
-    ctx.font = `800 ${Math.round(0.34 * scale)}px "Barlow Condensed", "Arial Narrow", sans-serif`;
-    ctx.fillStyle = 'rgba(21, 25, 28, 0.13)';
-    ctx.fillText('CHAMBER A', sx(1.6), sy(1.9));
-    ctx.font = `700 ${Math.round(0.16 * scale)}px "Barlow Condensed", "Arial Narrow", sans-serif`;
-    ctx.fillStyle = 'rgba(21, 25, 28, 0.35)';
-    ctx.fillText('TEST SEAT ▼', sx(chairX - 0.3), sy(1.55));
-    ctx.fillText('START', sx(-0.2), sy(1.95));
-
-    // floor with a hazard stripe along the edge
-    ctx.fillStyle = colors['--floor'];
-    ctx.fillRect(0, sy(0), W, H - sy(0));
-    const band = Math.max(6, 0.06 * scale);
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(0, sy(0), W, band);
-    ctx.clip();
-    ctx.fillStyle = colors['--hazard'];
-    ctx.fillRect(0, sy(0), W, band);
-    ctx.fillStyle = colors['--hazard-ink'];
-    const off = ((sx(0) % 24) + 24) % 24;
-    for (let x = -24 + off; x < W + 24; x += 24) {
-      ctx.beginPath();
-      ctx.moveTo(x, sy(0) + band);
-      ctx.lineTo(x + 12, sy(0) + band);
-      ctx.lineTo(x + 12 + band, sy(0));
-      ctx.lineTo(x + band, sy(0));
-      ctx.fill();
-    }
-    ctx.restore();
-    ctx.strokeStyle = colors['--ink'];
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(0, sy(0));
-    ctx.lineTo(W, sy(0));
-    ctx.stroke();
-
-    // distance markers on the floor
-    ctx.font = '600 10px "IBM Plex Mono", monospace';
-    ctx.fillStyle = colors['--muted'];
+    ctx.fillStyle = colors['--faint'];
+    ctx.font = '400 10px "Geist Mono", monospace';
     for (let x = Math.floor(left); x <= right; x++) {
-      ctx.fillRect(sx(x), sy(0) + band, 1.5, 8);
-      ctx.fillText(`${x}m`, sx(x) + 4, sy(0) + band + 14);
+      ctx.fillRect(Math.round(sx(x)), sy(0) + 1, 1, 5);
+      ctx.fillText(`${x}m`, sx(x) + 4, sy(0) + 14);
     }
-    // start line
-    ctx.setLineDash([6, 6]);
-    ctx.strokeStyle = colors['--dim'];
+
+    // start line: where every life and every attempt begins (x = 0)
+    const startX = Math.round(sx(0)) + 0.5;
+    ctx.strokeStyle = colors['--line-strong'];
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 5]);
     ctx.beginPath();
-    ctx.moveTo(sx(0), sy(0));
-    ctx.lineTo(sx(0), sy(1.85));
+    ctx.moveTo(startX, sy(0));
+    ctx.lineTo(startX, sy(2.05));
     ctx.stroke();
     ctx.setLineDash([]);
+    ctx.fillStyle = colors['--text'];
+    ctx.fillRect(startX - 6, Math.round(sy(0)) - 1, 12, 2); // a solid mark on the floor
+    ctx.font = '500 11px "Geist Mono", monospace';
+    ctx.fillStyle = colors['--muted'];
+    ctx.textAlign = 'center';
+    ctx.fillText('START', startX, sy(2.05) - 8);
+    ctx.textAlign = 'start';
 
-    // goal marker: only the brain sees it
+    // goal: only the brain sees it
     if (isBrain) {
-      ctx.strokeStyle = colors['--hazard'];
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.ellipse(sx(chairX), sy(0), 0.45 * scale, 0.07 * scale, 0, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.setLineDash([8, 7]);
-      ctx.strokeStyle = colors['--brain'];
+      ctx.strokeStyle = colors['--accent'];
       ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.ellipse(sx(chairX), sy(0), 0.42 * scale, 0.06 * scale, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([4, 6]);
+      ctx.strokeStyle = colors['--brain'];
+      ctx.lineWidth = 1.5;
       ctx.beginPath();
       ctx.moveTo(sx(pelvisX), sy(1.3));
       ctx.quadraticCurveTo(sx((pelvisX + chairX) / 2), sy(2.1), sx(chairX), sy(0.9));
@@ -448,82 +421,89 @@
       ctx.setLineDash([]);
     }
 
-    // test seat (seat, back, legs) — must match ragdoll.ts buildWorld
-    ctx.fillStyle = '#3C464D';
-    const rect = (cx, cy, hx, hy) => ctx.fillRect(sx(cx - hx), sy(cy + hy), hx * 2 * scale, hy * 2 * scale);
+    // chair — must match ragdoll.ts buildWorld
+    ctx.fillStyle = colors['--line-strong'];
+    const rect = (cx, cy, hx, hy) => {
+      ctx.beginPath();
+      ctx.roundRect(sx(cx - hx), sy(cy + hy), hx * 2 * scale, hy * 2 * scale, 2);
+      ctx.fill();
+    };
     rect(chairX, 0.46, 0.25, 0.04);
     rect(chairX + 0.25, 0.9, 0.03, 0.4);
     rect(chairX - 0.22, 0.21, 0.02, 0.21);
     rect(chairX + 0.22, 0.21, 0.02, 0.21);
-    ctx.fillStyle = colors['--hazard'];
-    rect(chairX, 0.505, 0.25, 0.012);
 
-    // body
+    // soft shadow under the body
+    const shadow = ctx.createRadialGradient(sx(pelvisX), sy(0), 0, sx(pelvisX), sy(0), 0.5 * scale);
+    shadow.addColorStop(0, 'rgba(0, 0, 0, 0.55)');
+    shadow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = shadow;
+    ctx.beginPath();
+    ctx.ellipse(sx(pelvisX), sy(0) + 2, 0.5 * scale, 0.06 * scale, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // body: flat shapes in each part's color; the far side is dimmer; your part gets a white ring
     for (const i of DRAW_ORDER) {
       const [name, size, color, side] = BODIES[i];
       const x = b[i * 3], y = b[i * 3 + 1], a = b[i * 3 + 2];
       const mine = OWNER[name] === me.role;
-      const loose = meta && OWNER[name] && !meta.roster.some((r) => r.role === OWNER[name]);
+      const empty = meta && OWNER[name] && !meta.roster.some((r) => r.role === OWNER[name]);
       ctx.save();
       ctx.translate(sx(x), sy(y));
       ctx.rotate(-a);
-      ctx.globalAlpha = (side === 'L' ? 0.5 : 1) * (loose ? 0.35 : 1);
+      // your own part is always drawn at full strength, even when it is on the far side
+      ctx.globalAlpha = mine ? 1 : (side === 'L' ? 0.45 : 1) * (empty ? 0.35 : 1);
       ctx.fillStyle = colors[color];
-      ctx.strokeStyle = mine ? colors['--hazard'] : colors['--ink'];
-      ctx.lineWidth = mine ? 3.5 : 1.5;
       if (size.r) {
-        // crash-test dummy head: yellow with two black quarters
+        // head: a crash-test marker, white with two dark quarters
         const r = size.r * scale;
         ctx.beginPath();
         ctx.arc(0, 0, r, 0, Math.PI * 2);
         ctx.fill();
-        ctx.fillStyle = colors['--ink'];
+        ctx.fillStyle = colors['--bg'];
         for (const start of [0, Math.PI]) {
           ctx.beginPath();
           ctx.moveTo(0, 0);
-          ctx.arc(0, 0, r, start, start + Math.PI / 2);
+          ctx.arc(0, 0, r * 0.82, start, start + Math.PI / 2);
           ctx.fill();
         }
-        ctx.beginPath();
-        ctx.arc(0, 0, r, 0, Math.PI * 2);
-        ctx.stroke();
       } else {
         const w = size.hx * 2 * scale, h = size.hy * 2 * scale;
         ctx.beginPath();
-        ctx.roundRect(-w / 2, -h / 2, w, h, Math.min(w, h) * 0.45);
+        ctx.roundRect(-w / 2, -h / 2, w, h, Math.min(w, h) / 2);
         ctx.fill();
-        ctx.stroke();
+        if (mine) {
+          ctx.globalAlpha = 1;
+          ctx.strokeStyle = colors['--text'];
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        }
       }
       ctx.restore();
     }
-    // what the crowd is shouting, above the head
+
+    // what people are shouting: small pills above the head
     if (meta) {
       const shouts = Object.entries(meta.emotes).sort((a, b) => b[1] - a[1]).slice(0, 3);
-      ctx.font = '600 13px "IBM Plex Mono", monospace';
+      ctx.font = '500 12px "Geist", system-ui, sans-serif';
       ctx.textAlign = 'center';
       shouts.forEach(([e, n], k) => {
-        const text = `${e} ×${n}`;
-        const x = sx(b[0]) + (k - (shouts.length - 1) / 2) * 92, y = sy(b[1]) - 0.3 * scale - 10;
-        const w = ctx.measureText(text).width + 16;
-        ctx.fillStyle = k === 0 ? colors['--ink'] : colors['--panel'];
-        ctx.strokeStyle = colors['--ink'];
-        ctx.lineWidth = 1.5;
+        const text = `${nice(e)} ${n}`;
+        const w = ctx.measureText(text).width + 20;
+        const x = sx(b[0]) + (k - (shouts.length - 1) / 2) * 84, y = sy(b[1]) - 0.28 * scale - 14;
+        ctx.globalAlpha = k === 0 ? 1 : 0.7;
+        ctx.fillStyle = colors['--surface'];
+        ctx.strokeStyle = colors['--line-strong'];
+        ctx.lineWidth = 1;
         ctx.beginPath();
-        ctx.rect(x - w / 2, y - 16, w, 24);
+        ctx.roundRect(x - w / 2, y - 13, w, 24, 12);
         ctx.fill();
         ctx.stroke();
-        ctx.fillStyle = k === 0 ? colors['--hazard'] : colors['--ink'];
-        ctx.fillText(text, x, y + 1);
+        ctx.fillStyle = colors['--text'];
+        ctx.fillText(text, x, y + 3);
       });
+      ctx.globalAlpha = 1;
       ctx.textAlign = 'start';
-    }
-    // brain glow on the head for brain players
-    if (isBrain) {
-      ctx.strokeStyle = colors['--brain'];
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.arc(sx(b[0]), sy(b[1]), 0.17 * scale, 0, Math.PI * 2);
-      ctx.stroke();
     }
   }
 
