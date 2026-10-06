@@ -4,7 +4,23 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>One Human Docs</title>
+<link rel="icon" href="/logo.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name="theme-color" content="#FF6A13">
 <meta name="description" content="How One Human works: the server, the shared brain, the Rapier ragdoll, the tick loop and running it on Cloudflare.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="One Human">
+<meta property="og:title" content="One Human Docs">
+<meta property="og:description" content="How One Human works: the server, the shared brain, the Rapier ragdoll, the tick loop and running it on Cloudflare.">
+<meta property="og:url" content="https://one-human.vanshsoniofficial.workers.dev/docs">
+<meta property="og:image" content="https://one-human.vanshsoniofficial.workers.dev/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="675">
+<meta property="og:image:alt" content="One Human: many people control one crash-test dummy body, each operating one limb, with a control panel and chat">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="One Human Docs">
+<meta name="twitter:description" content="How One Human works: the server, the shared brain, the Rapier ragdoll, the tick loop and running it on Cloudflare.">
+<meta name="twitter:image" content="https://one-human.vanshsoniofficial.workers.dev/og.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
@@ -56,6 +72,7 @@ pre { margin: 0; background: var(--panel); border: 1.5px solid var(--ink); borde
 .sitebar b { font-family: var(--display); font-weight: 800; font-size: 22px; letter-spacing: .04em; text-transform: uppercase; }
 .sitebar b span { color: var(--muted); font-weight: 700; font-size: 16px; letter-spacing: .1em; margin-left: 8px; }
 .sitebar .stripe { height: 6px; }
+.sitebar .home { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--ink); }
 .cta { font: 800 16px var(--display); letter-spacing: .1em; text-transform: uppercase; text-decoration: none; background: var(--hazard); color: var(--ink); border: 1.5px solid var(--ink); padding: 7px 14px; box-shadow: 2px 2px 0 var(--ink); white-space: nowrap; }
 .cta:hover { background: #FF7F33; }
 
@@ -198,7 +215,7 @@ ol.list li span { color: var(--muted); font-size: 15px; }
 
 <div class="sitebar">
   <div class="in">
-    <b>One Human<span>Docs</span></b>
+    <a class="home" href="/"><img src="/logo.svg" alt="" width="26" height="26"><b>One Human<span>Docs</span></b></a>
     <a class="cta" href="/">Enter the lab</a>
   </div>
   <div class="stripe hazard"></div>

@@ -4,6 +4,23 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>One Human</title>
+<link rel="icon" href="/logo.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name="theme-color" content="#FF6A13">
+<meta name="description" content="Everyone online controls one body. You get one part: a leg, an arm, the torso or the brain. Get the subject to the seat.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="One Human">
+<meta property="og:title" content="One Human">
+<meta property="og:description" content="Everyone online controls one body. You get one part: a leg, an arm, the torso or the brain. Get the subject to the seat.">
+<meta property="og:url" content="https://one-human.vanshsoniofficial.workers.dev/">
+<meta property="og:image" content="https://one-human.vanshsoniofficial.workers.dev/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="675">
+<meta property="og:image:alt" content="One Human: many people control one crash-test dummy body, each operating one limb, with a control panel and chat">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="One Human">
+<meta name="twitter:description" content="Everyone online controls one body. You get one part: a leg, an arm, the torso or the brain. Get the subject to the seat.">
+<meta name="twitter:image" content="https://one-human.vanshsoniofficial.workers.dev/og.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
@@ -42,6 +59,7 @@
   }
   .topbar::after { content: ""; position: absolute; left: 0; right: 0; bottom: -8px; height: 6px; background: repeating-linear-gradient(-45deg, var(--hazard) 0 10px, var(--hazard-ink) 10px 20px); }
   .brand { display: flex; align-items: baseline; gap: 12px; }
+  .brand .logo { align-self: center; width: 26px; height: 26px; margin-right: -4px; }
   .brand b { font-family: var(--display); font-weight: 800; font-size: 22px; letter-spacing: .04em; text-transform: uppercase; }
   .brand span { font-family: var(--display); font-weight: 700; font-size: 15px; letter-spacing: .1em; color: var(--muted); text-transform: uppercase; }
   .live { color: var(--hazard); }
@@ -137,7 +155,7 @@
 <canvas id="c"></canvas>
 
 <header class="topbar">
-  <div class="brand"><b>One Human</b><span>Subject #<span id="life">1</span></span><a class="doclink" href="/docs">How it's built</a></div>
+  <div class="brand"><img class="logo" src="/logo.svg" alt="" width="26" height="26"><b>One Human</b><span>Subject #<span id="life">1</span></span><a class="doclink" href="/docs">How it's built</a></div>
   <div class="order none" id="order"><b id="brainCmd">NO DIRECTIVE</b><small id="brainVotes">the control room is empty</small></div>
   <div class="stats">
     <div class="goal"><div class="label">Objective: reach the seat</div><b id="timer">0:00</b> <span class="help">record <span id="best">—</span></span></div>
@@ -176,7 +194,8 @@
     <div class="stripe hazard"></div>
     <div class="body">
       <div class="tag live">Live trial · <span id="landingCount">0</span> operators connected</div>
-      <h1>One Human</h1>
+      <img src="/logo.svg" alt="" width="64" height="64">
+    <h1>One Human</h1>
       <p>Experiment: can strangers on the internet operate one human body together? You'll be assigned one part. Get the subject to the seat.</p>
       <div class="steps">
         <div><b>1 · Get assigned</b>A leg, an arm, the torso, or the brain.</div>

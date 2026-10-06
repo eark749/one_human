@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- One Human logo: the subject's crash-test dummy head -->
+  <circle cx="32" cy="32" r="28.5" fill="#F2C230" stroke="#15191C" stroke-width="5"/>
+  <path d="M32 32 L60.5 32 A28.5 28.5 0 0 1 32 60.5 Z M32 32 L3.5 32 A28.5 28.5 0 0 1 32 3.5 Z" fill="#15191C"/>
+</svg>

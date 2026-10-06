@@ -9,7 +9,9 @@ import { CHAIR_X, MAX_MSGS_PER_SEC, TICK_HZ } from './config.js';
 
 const PORT = Number(process.env.PORT ?? 3000);
 const PUBLIC_DIR = path.resolve('public');
-const TYPES: Record<string, string> = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css' };
+const TYPES: Record<string, string> = {
+  '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png',
+};
 
 await initPhysics();
 
