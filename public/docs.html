@@ -1,0 +1,897 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>One Human Docs</title>
+<meta name="description" content="How One Human works: the server, the shared brain, the Rapier ragdoll, the tick loop and running it on Cloudflare.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+/* Docs in the lab theme: white tiled wall, ink outlines, safety-orange hazard marks.
+   Chapter list on the left, one chapter at a time, prev/next at the bottom. */
+:root {
+  --wall: #E9EDEF; --tile: #DCE2E6; --panel: #FFFFFF; --sunk: #F1F4F5;
+  --ink: #15191C; --muted: #5E6A72; --dim: #9AA6AD; --line: #C9D1D6;
+  --hazard: #FF6A13; --hazard-ink: #15191C;
+  --leg: #2B6CDF; --arm: #C99212; --torso: #17936A; --brain: #7B4AD6; --head: #F2C230; --bad: #D2382A;
+  --tip: #FFF4E8;
+  --display: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
+  --body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0; color: var(--ink); font-family: var(--body); font-size: 16.5px; line-height: 1.65;
+  background-color: var(--wall);
+  background-image: linear-gradient(var(--tile) 1px, transparent 1px), linear-gradient(90deg, var(--tile) 1px, transparent 1px);
+  background-size: 48px 48px;
+  padding-inline: 20px; padding-block: 0 60px;
+}
+h1, h2, h3 { font-family: var(--display); text-wrap: balance; line-height: 1.05; margin: 0; text-transform: uppercase; letter-spacing: .02em; }
+h1 { font-size: clamp(40px, 7vw, 64px); font-weight: 800; }
+h2 { font-size: clamp(32px, 5vw, 46px); font-weight: 800; }
+h3 { font-size: 20px; font-weight: 700; letter-spacing: .05em; }
+p { margin: 0; max-width: 66ch; }
+a { color: inherit; }
+.muted { color: var(--muted); }
+code, .mono { font-family: var(--mono); font-size: 0.86em; }
+:not(pre) > code { background: var(--sunk); border: 1px solid var(--line); padding: 0 5px; border-radius: 3px; }
+pre { margin: 0; background: var(--panel); border: 1.5px solid var(--ink); border-radius: 4px; padding: 14px 16px; overflow-x: auto; font-family: var(--mono); font-size: 13px; line-height: 1.55; }
+.label { font-family: var(--display); font-weight: 700; font-size: 13px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+:focus-visible { outline: 3px solid var(--hazard); outline-offset: 2px; }
+.c-leg { color: var(--leg); } .c-arm { color: var(--arm); } .c-torso { color: var(--torso); } .c-brain { color: var(--brain); } .c-hazard { color: var(--hazard); }
+.dot { display: inline-block; width: 10px; height: 10px; border: 1.5px solid var(--ink); vertical-align: 0; margin-right: 6px; }
+.hazard { background: repeating-linear-gradient(-45deg, var(--hazard) 0 10px, var(--hazard-ink) 10px 20px); }
+
+/* site bar */
+.sitebar {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 6; margin-inline: -20px;
+  background: var(--panel); border-bottom: 1.5px solid var(--ink);
+}
+.sitebar .in { max-width: 1160px; margin: 0 auto; padding: 10px 20px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.sitebar b { font-family: var(--display); font-weight: 800; font-size: 22px; letter-spacing: .04em; text-transform: uppercase; }
+.sitebar b span { color: var(--muted); font-weight: 700; font-size: 16px; letter-spacing: .1em; margin-left: 8px; }
+.sitebar .stripe { height: 6px; }
+.cta { font: 800 16px var(--display); letter-spacing: .1em; text-transform: uppercase; text-decoration: none; background: var(--hazard); color: var(--ink); border: 1.5px solid var(--ink); padding: 7px 14px; box-shadow: 2px 2px 0 var(--ink); white-space: nowrap; }
+.cta:hover { background: #FF7F33; }
+
+/* book layout */
+.book { max-width: 1160px; margin: 0 auto; display: grid; grid-template-columns: 250px 1fr; gap: 40px; padding-top: 28px; }
+.book > * { min-width: 0; }
+aside.toc { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 84px); align-self: start; max-height: calc(100vh - 100px); overflow-y: auto; background: var(--panel); border: 1.5px solid var(--ink); border-radius: 4px; padding: 12px; }
+aside.toc ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; position: relative; }
+aside.toc .part { font-family: var(--display); font-weight: 700; font-size: 12px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); padding: 12px 8px 4px; }
+aside.toc .part:first-child { padding-top: 2px; }
+aside.toc button { width: 100%; text-align: left; display: grid; grid-template-columns: 26px 1fr; gap: 6px; align-items: baseline; background: none; border: 0; border-radius: 3px; padding: 6px 8px; cursor: pointer; color: var(--muted); font: 400 14px/1.35 var(--body); }
+aside.toc button .n { font-family: var(--mono); font-size: 12px; }
+aside.toc button:hover { background: var(--sunk); color: var(--ink); }
+aside.toc button[aria-current="true"] { background: var(--ink); color: #fff; font-weight: 600; }
+aside.toc button[aria-current="true"] .n { color: var(--hazard); }
+@media (max-width: 880px) {
+  .book { grid-template-columns: 1fr; gap: 18px; padding-top: 14px; }
+  aside.toc { position: static; max-height: none; padding: 8px; }
+  aside.toc .part { display: none; }
+  aside.toc ol { display: flex; overflow-x: auto; gap: 6px; scrollbar-width: none; }
+  aside.toc li { flex: none; }
+  aside.toc button { display: flex; white-space: nowrap; border: 1px solid var(--line); }
+}
+
+/* chapter */
+article.chapter { display: grid; gap: 20px; padding-bottom: 10px; }
+.ch-head { display: grid; gap: 6px; }
+.ch-num { font-family: var(--display); font-weight: 800; font-size: 15px; letter-spacing: .16em; color: var(--hazard); }
+.oneline { font-size: 19px; line-height: 1.5; font-weight: 500; max-width: 62ch; padding: 0; background: var(--panel); border: 1.5px solid var(--ink); border-radius: 4px; box-shadow: 4px 4px 0 rgba(21, 25, 28, .12); overflow: hidden; }
+.oneline .stripe { height: 6px; }
+.oneline .txt { padding: 14px 18px; }
+.oneline .label { display: block; margin-bottom: 2px; }
+.analogy { display: grid; grid-template-columns: 42px 1fr; gap: 12px; align-items: start; max-width: 66ch; }
+.analogy .ic { width: 42px; height: 42px; border: 1.5px solid var(--ink); background: var(--panel); display: grid; place-items: center; font-size: 19px; }
+.analogy b { display: block; font-family: var(--display); font-weight: 700; font-size: 13px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+.panel { background: var(--panel); border: 1.5px solid var(--ink); border-radius: 4px; padding: 18px; min-width: 0; }
+.tip { background: var(--tip); border: 1.5px solid var(--hazard); border-radius: 4px; padding: 14px 16px; max-width: 70ch; }
+.tip .label { color: var(--ink); display: block; margin-bottom: 2px; }
+.note { border-left: 4px solid var(--hazard); padding: 4px 0 4px 14px; max-width: 66ch; }
+.scroll-x { overflow-x: auto; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.grid2 > * { min-width: 0; }
+@media (max-width: 680px) { .grid2 { grid-template-columns: 1fr; } }
+.sect { display: grid; gap: 12px; }
+table { border-collapse: collapse; width: 100%; font-size: 15px; background: var(--panel); }
+th, td { text-align: left; padding: 9px 12px; border: 1px solid var(--line); vertical-align: top; }
+th { font-family: var(--display); font-weight: 700; font-size: 13px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); background: var(--sunk); }
+td.num { font-variant-numeric: tabular-nums; font-family: var(--mono); font-size: 13px; }
+dl.words { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 8px 18px; font-size: 15px; }
+dl.words dt { font-family: var(--mono); font-size: 13px; font-weight: 600; padding-top: 2px; }
+dl.words dd { margin: 0; color: var(--muted); }
+@media (max-width: 520px) { dl.words { grid-template-columns: 1fr; gap: 2px; } dl.words dd { margin-bottom: 8px; } }
+details.q { border-top: 1.5px solid var(--line); padding: 10px 0; }
+details.q summary { cursor: pointer; font-weight: 600; list-style: none; display: flex; gap: 10px; }
+details.q summary::-webkit-details-marker { display: none; }
+details.q summary::before { content: "+"; font-family: var(--mono); color: var(--hazard); width: 14px; flex: none; font-weight: 700; }
+details.q[open] summary::before { content: "−"; }
+details.q p { margin-top: 6px; padding-left: 24px; color: var(--muted); }
+
+/* pager */
+.pager { display: flex; justify-content: space-between; gap: 10px; border-top: 1.5px solid var(--ink); padding-top: 18px; margin-top: 10px; flex-wrap: wrap; }
+.pager button { font: 600 15px var(--body); padding: 10px 14px; border-radius: 3px; border: 1.5px solid var(--ink); background: var(--panel); color: var(--ink); cursor: pointer; max-width: 100%; text-align: left; }
+.pager button.next { margin-left: auto; background: var(--hazard); box-shadow: 2px 2px 0 var(--ink); }
+.pager small { display: block; font: 700 12px var(--display); letter-spacing: .12em; text-transform: uppercase; opacity: .75; }
+.progress { height: 6px; border: 1.5px solid var(--ink); background: var(--panel); }
+.progress i { display: block; height: 100%; background: var(--hazard); transition: width .3s; }
+
+/* svg */
+svg text { font-family: var(--mono); fill: var(--ink); }
+svg .t-muted { fill: var(--muted); }
+svg .box { fill: var(--panel); stroke: var(--ink); stroke-width: 1.5; }
+svg .box-strong { fill: var(--panel); stroke: var(--ink); stroke-width: 2.5; }
+svg .sunk { fill: var(--sunk); stroke: var(--line); }
+svg .wire { stroke: var(--hazard); stroke-width: 2.5; fill: none; }
+svg .wire-back { stroke: var(--muted); stroke-width: 2; fill: none; stroke-dasharray: 5 5; }
+svg .floor { stroke: var(--ink); stroke-width: 2; }
+
+/* flow */
+.flow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.step { font-family: var(--mono); font-size: 12.5px; padding: 8px 12px; border-radius: 3px; background: var(--sunk); border: 1.5px solid var(--line); }
+.step.main { border-color: var(--ink); background: var(--panel); font-weight: 600; }
+.arrow { color: var(--muted); font-family: var(--mono); }
+.branch { display: grid; grid-template-columns: 150px 1fr; gap: 12px; align-items: baseline; font-size: 15px; padding: 10px 0; border-top: 1px dashed var(--line); }
+.branch .trig { font-family: var(--mono); font-size: 12.5px; font-weight: 600; }
+@media (max-width: 560px) { .branch { grid-template-columns: 1fr; gap: 2px; } }
+.loop { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; }
+.loop div { background: var(--panel); border: 1.5px solid var(--ink); border-radius: 3px; padding: 10px; font-size: 14px; min-width: 0; }
+.loop b { display: block; font-family: var(--display); font-weight: 800; font-size: 16px; color: var(--hazard); }
+@media (max-width: 700px) { .loop { grid-template-columns: repeat(2, 1fr); } }
+
+/* HUD mockups */
+.hud { background: var(--panel); border: 1.5px solid var(--ink); border-radius: 4px; padding: 14px; font-family: var(--mono); font-size: 12.5px; display: grid; gap: 10px; }
+.hud .big { font-family: var(--display); font-weight: 800; font-size: 30px; letter-spacing: .05em; line-height: 1; }
+.hud .order { border: 1.5px solid var(--brain); background: #F1ECFB; color: var(--brain); padding: 6px 10px; text-align: center; font-family: var(--display); font-weight: 800; font-size: 17px; letter-spacing: .06em; }
+.hud .stage { height: 120px; border: 1px solid var(--line); background: var(--wall); overflow: hidden; }
+.hud .emotes { display: flex; flex-wrap: wrap; gap: 6px; }
+.hud .emotes span { border: 1.5px solid var(--ink); padding: 2px 8px; background: var(--sunk); }
+.pullbar { position: relative; width: 160px; height: 10px; background: var(--sunk); border: 1.5px solid var(--ink); display: inline-block; vertical-align: middle; }
+.pullbar i { position: absolute; top: -5px; width: 6px; height: 16px; border: 1.5px solid var(--ink); }
+
+/* aggregation demo */
+.demo-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
+.btns { display: flex; flex-wrap: wrap; gap: 6px; }
+.btns button { font: 600 12.5px var(--mono); color: var(--ink); background: var(--sunk); border: 1.5px solid var(--ink); border-radius: 3px; padding: 6px 10px; cursor: pointer; }
+.btns button[aria-pressed="true"] { background: var(--ink); color: #fff; }
+.players { display: grid; grid-template-columns: repeat(24, 1fr); gap: 4px; height: 120px; margin-top: 16px; }
+.pl { position: relative; background: var(--sunk); border: 1px solid var(--line); cursor: pointer; padding: 0; }
+.pl::after { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: var(--ink); opacity: .3; }
+.pl i { position: absolute; left: 2px; right: 2px; transition: all .2s; }
+.pl.stale i { opacity: 0.25; }
+@media (max-width: 520px) { .players { grid-template-columns: repeat(12, 1fr); height: 180px; } }
+.readout { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 16px; }
+.readout b { display: block; font-family: var(--display); font-size: 30px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.1; }
+@media (max-width: 560px) { .readout { grid-template-columns: 1fr 1fr; } }
+.demo-body { display: grid; grid-template-columns: 1fr 170px; gap: 18px; align-items: center; }
+.demo-body > * { min-width: 0; }
+@media (max-width: 640px) { .demo-body { grid-template-columns: 1fr; } .demo-body svg { max-width: 170px; } }
+.vote { display: grid; grid-template-columns: 120px 1fr 28px; gap: 10px; align-items: center; font-family: var(--mono); font-size: 12.5px; padding: 4px 0; }
+.vote .bar { height: 12px; background: var(--sunk); border: 1px solid var(--ink); }
+.vote .bar i { display: block; height: 100%; background: var(--brain); }
+.vote.win { font-weight: 600; }
+.gait { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.gait figure { margin: 0; background: var(--panel); border: 1.5px solid var(--ink); border-radius: 3px; padding: 10px; min-width: 0; }
+.gait figcaption { font-size: 13px; color: var(--muted); margin-top: 6px; line-height: 1.4; }
+@media (max-width: 640px) { .gait { grid-template-columns: 1fr 1fr; } }
+.kscale { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.kscale > div { padding: 12px; border: 1.5px solid var(--line); background: var(--sunk); font-size: 14.5px; }
+.kscale > div.pick { background: var(--panel); border-color: var(--torso); outline: 2px solid var(--torso); }
+.kscale b { font-family: var(--mono); font-size: 12px; display: block; margin-bottom: 4px; }
+@media (max-width: 560px) { .kscale { grid-template-columns: 1fr; } }
+ol.list { margin: 0; padding: 0; list-style: none; counter-reset: li; }
+ol.list li { counter-increment: li; display: grid; grid-template-columns: 44px 1fr; gap: 12px; padding: 14px 0; border-top: 1.5px solid var(--line); }
+ol.list li::before { content: counter(li); font-family: var(--display); font-size: 28px; font-weight: 800; color: var(--hazard); line-height: 1; }
+ol.list li b { display: block; }
+ol.list li span { color: var(--muted); font-size: 15px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+<div class="sitebar">
+  <div class="in">
+    <b>One Human<span>Docs</span></b>
+    <a class="cta" href="/">Enter the lab</a>
+  </div>
+  <div class="stripe hazard"></div>
+</div>
+
+<div class="book">
+  <aside class="toc" aria-label="Chapters"><ol id="toc"></ol></aside>
+  <main>
+
+<!-- 1 -->
+<article class="chapter" data-ch="1" data-part="The game" data-title="The idea">
+  <div class="ch-head"><div class="ch-num">CHAPTER 1</div><h1>How One Human works</h1></div>
+  <div class="oneline"><div class="stripe hazard"></div><div class="txt"><span class="label">In one line</span>Everyone online controls one single human together. Each person gets one body part.</div></div>
+  <div class="analogy"><span class="ic">🏃</span><p><b>Think of it like</b>A three-legged race with 34 people tied together, and nobody can talk. They can only point and shout single words.</p></div>
+  <div class="sect">
+    <p>When you open the site you see Subject #1 standing in a test chamber. Click <b>Enter the lab</b> and you are assigned one body part, maybe the <span class="c-leg">left leg</span>. Your keys move only that leg. Other people have the other leg, the arms, the torso and the brain.</p>
+    <p>The objective sounds easy: get the subject to the test seat. But the two leg groups have to take turns, the torso has to keep balance, and nobody can talk properly. So the subject falls over a lot. That is the game.</p>
+  </div>
+  <div class="grid2">
+    <div class="panel">
+      <svg viewBox="0 0 220 250" width="100%" style="max-width:220px;display:block;margin:auto" role="img" aria-label="Crash-test dummy colored by body part">
+        <circle cx="110" cy="40" r="22" fill="var(--head)" stroke="var(--ink)" stroke-width="2.5"/>
+        <path d="M110 40 L132 40 A22 22 0 0 1 110 62 Z M110 40 L88 40 A22 22 0 0 1 110 18 Z" fill="var(--ink)"/>
+        <line x1="110" y1="64" x2="110" y2="150" stroke="var(--torso)" stroke-width="10" stroke-linecap="round"/>
+        <polyline points="110,78 72,112 62,150" fill="none" stroke="var(--arm)" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+        <polyline points="110,78 150,108 168,80" fill="none" stroke="var(--arm)" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+        <polyline points="110,150 88,196 84,236" fill="none" stroke="var(--leg)" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+        <polyline points="110,150 138,192 150,234" fill="none" stroke="var(--leg)" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+        <line x1="10" y1="240" x2="210" y2="240" class="floor"/>
+        <ellipse cx="196" cy="240" rx="18" ry="5" fill="none" stroke="var(--hazard)" stroke-width="3"/>
+      </svg>
+    </div>
+    <div class="panel" style="display:grid;gap:10px;align-content:center">
+      <div><span class="dot" style="background:var(--leg)"></span><b>Legs</b> <span class="muted">· 8 seats each · step to move</span></div>
+      <div><span class="dot" style="background:var(--arm)"></span><b>Arms</b> <span class="muted">· 5 seats each · swing</span></div>
+      <div><span class="dot" style="background:var(--torso)"></span><b>Torso</b> <span class="muted">· 6 seats · lean and balance</span></div>
+      <div><span class="dot" style="background:var(--brain)"></span><b>Brain</b> <span class="muted">· 2 seats · sees the map, gives directives</span></div>
+      <div><span class="dot" style="background:var(--hazard)"></span><b>Objective</b> <span class="muted">· the test seat</span></div>
+    </div>
+  </div>
+  <h3>The loop</h3>
+  <div class="loop">
+    <div><b>1</b>Enter the lab</div><div><b>2</b>Get a body part</div><div><b>3</b>Work with strangers</div>
+    <div><b>4</b>Reach the seat</div><div><b>5</b>Beat the record</div><div><b>6</b>New trial</div>
+  </div>
+  <p>If the subject hits its head too hard, everyone sees <b>Subject lost</b>. A new subject enters the chamber with the next number. Every life is saved with how long it survived and how it died.</p>
+  <p class="muted">These docs walk through the whole system, from what a player sends to how the body is simulated. Use the chapter list or the arrow keys.</p>
+</article>
+
+<!-- 2 -->
+<article class="chapter" data-ch="2" data-part="The game" data-title="The player's journey">
+  <div class="ch-head"><div class="ch-num">CHAPTER 2</div><h2>The player's journey</h2></div>
+  <div class="oneline"><div class="stripe hazard"></div><div class="txt"><span class="label">In one line</span>You watch first, click once, get a body part, and play straight away. No signup, no tutorial.</div></div>
+  <div class="panel">
+    <div class="flow">
+      <span class="step">Landing (watch live)</span><span class="arrow">→</span>
+      <span class="step">Enter the lab</span><span class="arrow">→</span>
+      <span class="step">Assignment card · 2 s</span><span class="arrow">→</span>
+      <span class="step main">Play</span>
+    </div>
+    <p class="label" style="margin-top:18px">While playing, four things can happen</p>
+    <div class="branch" style="border-top:0"><span class="trig">Every 60 s</span><span>Everyone is reassigned. You might be a leg now and the brain next minute.</span></div>
+    <div class="branch"><span class="trig">Subject down</span><span>Everyone holds SPACE together to fill a shared bar and stand it up.</span></div>
+    <div class="branch"><span class="trig">Seat reached</span><span>Trial time, the record, and how many operators did it. The next trial starts.</span></div>
+    <div class="branch"><span class="trig c-hazard">Subject lost</span><span>After 5 seconds a new subject enters the chamber. Everyone's input is reset so it starts from rest.</span></div>
+  </div>
+  <div class="grid2">
+    <div class="sect">
+      <h3>Assignment card</h3>
+      <div class="hud" style="text-align:center;padding:24px 14px">
+        <div class="label">Assignment</div>
+        <div class="big" style="color:var(--leg)">LEFT LEG</div>
+        <div>A / ◀ swing back · D / ▶ swing forward</div>
+      </div>
+    </div>
+    <div class="sect">
+      <h3>Control panel</h3>
+      <div class="hud" aria-label="Control panel mockup">
+        <div class="order">WALK RIGHT</div>
+        <div class="stage">
+          <svg viewBox="0 0 300 120" width="100%" height="100%" preserveAspectRatio="xMidYMax meet">
+            <line x1="0" y1="108" x2="300" y2="108" stroke="var(--ink)" stroke-width="2"/>
+            <circle cx="80" cy="44" r="9" fill="var(--head)" stroke="var(--ink)" stroke-width="1.5"/>
+            <line x1="80" y1="53" x2="84" y2="82" stroke="var(--torso)" stroke-width="5" stroke-linecap="round"/>
+            <polyline points="84,82 74,96 70,108" fill="none" stroke="var(--leg)" stroke-width="5" stroke-linecap="round"/>
+            <polyline points="84,82 96,94 98,108" fill="none" stroke="var(--leg)" stroke-width="3" stroke-linecap="round" opacity=".5"/>
+            <rect x="236" y="80" width="30" height="6" fill="#3C464D"/><line x1="240" y1="86" x2="240" y2="108" stroke="#3C464D" stroke-width="3"/><line x1="262" y1="86" x2="262" y2="108" stroke="#3C464D" stroke-width="3"/><line x1="264" y1="50" x2="264" y2="86" stroke="#3C464D" stroke-width="3"/>
+          </svg>
+        </div>
+        <div>LEFT LEG <span class="pullbar"><i style="left:120px;background:var(--hazard)"></i><i style="left:90px;background:var(--leg)"></i></span></div>
+        <div class="muted">orange = you · blue = your whole station</div>
+        <div class="emotes"><span>GO ×4</span><span>STOP</span><span>LEFT</span><span>RIGHT ×2</span><span>WAIT</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="tip"><span class="label">The most important part of the screen</span>The bar with two marks: your input and your station's result. Without it, players think the game is broken. With it they get it at once: "I'm pushing forward, my group is pushing back."</div>
+  <p><b>No chat.</b> Players can only send five short calls: GO, STOP, LEFT, RIGHT, WAIT. The top three float above the subject's head. Names are generated (like <span class="mono">ClumsyNostril82</span>), so there is nothing to moderate.</p>
+</article>
+
+<!-- 3 -->
+<article class="chapter" data-ch="3" data-part="How it is built" data-title="Server and client">
+  <div class="ch-head"><div class="ch-num">CHAPTER 3</div><h2>Server and client</h2></div>
+  <div class="oneline"><div class="stripe hazard"></div><div class="txt"><span class="label">In one line</span>Browsers only send wishes. One server decides what really happens to the body.</div></div>
+  <div class="analogy"><span class="ic">⚽</span><p><b>Think of it like</b>A football referee. Players can shout "foul!", but only the referee decides.</p></div>
+  <div class="sect">
+    <p>The <b>client</b> is the game in your browser. It reads your keys and draws the picture. The <b>server</b> runs the physics and holds the one true position of the body. This is an <b>authoritative server</b>.</p>
+    <p>Clients never say "the leg is here". They only say "I want my leg to go forward". If clients decided positions, someone could send <code>x = 999999</code> and the subject would teleport. With an authoritative server, the worst a cheater can do is push their one leg a bit harder.</p>
+  </div>
+  <div class="panel scroll-x">
+    <svg viewBox="0 0 700 240" style="min-width:560px;width:100%" role="img" aria-label="Browsers send wishes to the server, the server sends body state back">
+      <defs>
+        <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--hazard)"/></marker>
+        <marker id="ahm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker>
+      </defs>
+      <rect x="20" y="20" width="150" height="44" rx="3" class="box"/><text x="95" y="47" text-anchor="middle" font-size="12">Browser · left leg</text>
+      <rect x="20" y="80" width="150" height="44" rx="3" class="box"/><text x="95" y="107" text-anchor="middle" font-size="12">Browser · right arm</text>
+      <rect x="20" y="140" width="150" height="44" rx="3" class="box"/><text x="95" y="167" text-anchor="middle" font-size="12">Browser · brain</text>
+      <rect x="380" y="30" width="200" height="150" rx="3" class="box-strong"/>
+      <text x="480" y="62" text-anchor="middle" font-size="14" font-weight="600">SERVER</text>
+      <text x="480" y="90" text-anchor="middle" font-size="11" class="t-muted">collects all wishes</text>
+      <text x="480" y="110" text-anchor="middle" font-size="11" class="t-muted">runs the physics</text>
+      <text x="480" y="130" text-anchor="middle" font-size="11" class="t-muted">checks the rules</text>
+      <text x="480" y="150" text-anchor="middle" font-size="11" class="t-muted">owns the ONE body</text>
+      <path d="M170 42 L380 80" class="wire" marker-end="url(#ah)"/>
+      <path d="M170 102 L380 102" class="wire" marker-end="url(#ah)"/>
+      <path d="M170 162 L380 124" class="wire" marker-end="url(#ah)"/>
+      <path d="M380 160 Q 280 215 170 180" class="wire-back" marker-end="url(#ahm)"/>
+      <line x1="20" y1="222" x2="56" y2="222" class="wire"/><text x="64" y="226" font-size="11">wish: "my limb, this way"</text>
+      <line x1="330" y1="222" x2="366" y2="222" class="wire-back"/><text x="374" y="226" font-size="11">truth: where the body is now</text>
+    </svg>
+  </div>
+  <p>They talk over a <b>WebSocket</b>: a connection that stays open so messages flow both ways many times a second.</p>
+  <h3>What the browser sends</h3>
+<pre>{ "t": "in", "axis": 0.8, "up": false, "life": 7 }   // on every key change + every 250 ms
+{ "t": "brain", "cmd": "WALK_RIGHT" }                // brain seats only
+{ "t": "emote", "e": "GO" }</pre>
+  <div class="scroll-x">
+  <table>
+    <tr><th>Rule on the server</th><th>What it stops</th></tr>
+    <tr><td>No message for 0.5 s → input counts as 0</td><td>Players who leave the tab stop moving the body.</td></tr>
+    <tr><td>Axis is cut to −1…1</td><td>A modified browser pushing harder than everyone else.</td></tr>
+    <tr><td>Max 30 messages per second per socket</td><td>Flooding the server.</td></tr>
+    <tr><td>The server assigns your body part</td><td>Choosing a different part than the one you were given.</td></tr>
+    <tr><td>Input carries the subject number</td><td>A late message from the previous subject moving the new one.</td></tr>
+    <tr><td>Each player counts once per call</td><td>One person clicking GO 50 times to fake a crowd.</td></tr>
+  </table>
+  </div>
+</article>
+
+<!-- 4 -->
+<article class="chapter" data-ch="4" data-part="How it is built" data-title="The shared brain">
+  <div class="ch-head"><div class="ch-num">CHAPTER 4</div><h2>The shared brain</h2></div>
+  <div class="oneline"><div class="stripe hazard"></div><div class="txt"><span class="label">In one line</span>The server averages everyone on the same body part, and that average moves the limb.</div></div>
+  <div class="analogy"><span class="ic">🪢</span><p><b>Think of it like</b>Tug-of-war. 7 pull right and 3 pull left: the rope moves right, slowly. All 10 pull right: it moves fast.</p></div>
+  <div class="sect">
+    <p>60 times a second, for each body part, the server adds up the axis of every active operator and divides by how many there are. Results between −0.1 and +0.1 count as zero (the <b>deadzone</b>), so the limb doesn't shake from small random input.</p>
+    <p><b>Try it.</b> Each bar is one operator. Up = forward, down = back. Click a bar to flip it, or load a scenario. (A real leg has 8 seats; the demo uses 24 to make the effect easy to see.)</p>
+  </div>
+  <div class="panel">
+    <div class="demo-head">
+      <span class="label"><i class="dot" style="background:var(--leg)"></i>Left leg · 24 operators</span>
+      <div class="btns" role="group" aria-label="Scenarios">
+        <button data-s="noise" aria-pressed="true">Random</button>
+        <button data-s="coord" aria-pressed="false">Teamwork</button>
+        <button data-s="troll" aria-pressed="false">30% trolls</button>
+        <button data-s="afk" aria-pressed="false">Half idle</button>
+        <button id="jitter" aria-pressed="false">Live</button>
+      </div>
+    </div>
+    <div class="demo-body">
+      <div>
+        <div class="players" id="players"></div>
+        <div class="readout">
+          <div><span class="label">Active</span><b id="r-n">24</b></div>
+          <div><span class="label">Average</span><b id="r-mean">0.00</b></div>
+          <div><span class="label">Agreement</span><b id="r-agree">0%</b></div>
+          <div><span class="label">Hip target</span><b id="r-deg">0°</b></div>
+        </div>
+      </div>
+      <svg viewBox="0 0 180 200" role="img" aria-label="Leg moved by the group average">
+        <line x1="20" y1="40" x2="160" y2="40" stroke="var(--line)" stroke-width="2"/>
+        <text x="90" y="24" text-anchor="middle" font-size="11" class="t-muted">hip</text>
+        <path id="arc" d="" fill="none" stroke="var(--line)" stroke-width="1.5" stroke-dasharray="3 4"/>
+        <g id="leg">
+          <line x1="90" y1="40" x2="90" y2="110" stroke="var(--leg)" stroke-width="12" stroke-linecap="round"/>
+          <line id="shin" x1="90" y1="110" x2="90" y2="175" stroke="var(--leg)" stroke-width="10" stroke-linecap="round"/>
+        </g>
+        <circle cx="90" cy="40" r="7" fill="var(--panel)" stroke="var(--ink)" stroke-width="2"/>
+        <text x="90" y="196" text-anchor="middle" font-size="11" id="legtxt">still</text>
+      </svg>
+    </div>
+  </div>
+<pre>for each body part:
+  active = operators heard from in the last 0.5 s
+  mean   = sum(axis) / active.length
+  if |mean| < 0.1: mean = 0                  // deadzone
+  hip target = mean × 1.0 rad               // the motor moves the leg there</pre>
+  <p><b>Why an average and not a vote?</b> A vote snaps between forward and back. An average is smooth, and players can see when they are fighting each other. Random noise cancels out, and trolls only make a limb weaker.</p>
+  <div class="note"><b>Why only 34 seats.</b> With 2,000 people on one leg, each person moves it 0.05% and random inputs cancel out. Nothing happens and nobody feels in control. So each part has a fixed number of seats (8 per leg, 5 per arm, 6 torso, 2 brains). Everyone else waits on standby and gets the next free seat. The first players fill the legs, torso and brain first, so even three people can walk.</div>
+</article>
+
+<!-- 5 -->
+<article class="chapter" data-ch="5" data-part="How it is built" data-title="The brain role">
+  <div class="ch-head"><div class="ch-num">CHAPTER 5</div><h2>The brain role</h2></div>
+  <div class="oneline"><div class="stripe hazard"></div><div class="txt"><span class="label">In one line</span>Brains can see the seat but can't move the body. The body can move but can't see where to go.</div></div>
+  <div class="analogy"><span class="ic">🚣</span><p><b>Think of it like</b>A rowing boat. The rowers face backward. The cox sees the finish and calls the rhythm, but doesn't row.</p></div>
+  <p>If the brain only shouted orders, nobody would need it. So the brain gets <b>information the body doesn't have</b>.</p>
+  <div class="grid2">
+    <div class="panel">
+      <h3>Body operators see</h3>
+      <svg viewBox="0 0 300 150" width="100%" role="img" aria-label="Close-up view with no target" style="margin-top:10px">
+        <rect x="0" y="0" width="300" height="150" class="sunk"/>
+        <line x1="0" y1="130" x2="300" y2="130" class="floor"/>
+        <circle cx="150" cy="56" r="10" fill="var(--head)" stroke="var(--ink)" stroke-width="1.5"/>
+        <line x1="150" y1="66" x2="150" y2="100" stroke="var(--torso)" stroke-width="6" stroke-linecap="round"/>
+        <polyline points="150,100 140,116 136,130" fill="none" stroke="var(--leg)" stroke-width="6" stroke-linecap="round"/>
+        <polyline points="150,100 160,114 164,130" fill="none" stroke="var(--leg)" stroke-width="6" stroke-linecap="round"/>
+        <polyline points="150,74 136,88 132,100" fill="none" stroke="var(--arm)" stroke-width="4" stroke-linecap="round"/>
+        <polyline points="150,74 164,88 168,100" fill="none" stroke="var(--arm)" stroke-width="4" stroke-linecap="round"/>
+        <text x="12" y="22" font-size="11" class="t-muted">close-up · no target</text>
+      </svg>
+    </div>
+    <div class="panel">
+      <h3 class="c-brain">Brains see</h3>
+      <svg viewBox="0 0 300 150" width="100%" role="img" aria-label="Whole chamber with route and target" style="margin-top:10px">
+        <rect x="0" y="0" width="300" height="150" class="sunk"/>
+        <line x1="0" y1="130" x2="300" y2="130" class="floor"/>
+        <circle cx="70" cy="86" r="5" fill="var(--head)" stroke="var(--ink)"/>
+        <line x1="70" y1="91" x2="70" y2="108" stroke="var(--torso)" stroke-width="3"/>
+        <polyline points="70,108 66,118 64,130" fill="none" stroke="var(--leg)" stroke-width="3"/>
+        <polyline points="70,108 74,118 76,130" fill="none" stroke="var(--leg)" stroke-width="3"/>
+        <path d="M84 110 Q 160 60 236 112" fill="none" stroke="var(--brain)" stroke-width="2" stroke-dasharray="5 4"/>
+        <rect x="232" y="104" width="24" height="5" fill="#3C464D"/><line x1="234" y1="109" x2="234" y2="130" stroke="#3C464D" stroke-width="2"/><line x1="254" y1="109" x2="254" y2="130" stroke="#3C464D" stroke-width="2"/><line x1="256" y1="80" x2="256" y2="109" stroke="#3C464D" stroke-width="2"/>
+        <ellipse cx="244" cy="131" rx="22" ry="5" fill="none" stroke="var(--hazard)" stroke-width="2.5"/>
+        <text x="12" y="22" font-size="11" class="t-muted">whole chamber · route · seat</text>
+      </svg>
+    </div>
+  </div>
+  <h3>Directives</h3>
+  <p>Brains pick from 9 fixed commands, with keys 1–9. No free typing, so nothing to moderate.</p>
+  <div class="scroll-x">
+  <table>
+    <tr><th>Type</th><th>Commands</th></tr>
+    <tr><td>Movement</td><td class="mono">WALK RIGHT · WALK LEFT · STOP</td></tr>
+    <tr><td>Legs</td><td class="mono">LEFT LEG NOW · RIGHT LEG NOW</td></tr>
+    <tr><td>Body</td><td class="mono">LEAN FORWARD · LEAN BACK · GET UP · SIT</td></tr>
+  </table>
+  </div>
+  <div class="grid2">
+    <div class="panel">
+      <h3>Several brains, one directive</h3>
+      <p class="muted" style="font-size:15px;margin:6px 0 12px">Every 2 seconds each brain's current command is one vote. The winner is shown to everyone, with how many agree. A brain silent for 10 s stops counting.</p>
+      <div class="vote win"><span>WALK RIGHT</span><span class="bar"><i style="width:50%"></i></span><span>1</span></div>
+      <div class="vote"><span>STOP</span><span class="bar"><i style="width:50%"></i></span><span>1</span></div>
+      <p class="mono" style="font-size:12.5px;margin-top:10px">Shown: "WALK RIGHT · 1 of 2 brains agree"</p>
+    </div>
+    <div class="panel">
+      <h3>Planned</h3>
+      <p style="font-size:15px;margin-top:6px">An <b>IGNORE BRAIN</b> button for body operators: if most press it within 10 seconds, the brains are replaced. Also a score for how closely the body follows directives, so the best brain can be named after each trial.</p>
+    </div>
+  </div>
+</article>
+
+<!-- 6 -->
+<article class="chapter" data-ch="6" data-part="Physics" data-title="The ragdoll">
+  <div class="ch-head"><div class="ch-num">CHAPTER 6</div><h2>The ragdoll (Rapier)</h2></div>
+  <div class="oneline"><div class="stripe hazard"></div><div class="txt"><span class="label">In one line</span>The subject is 13 solid pieces joined by hinges. Motors in some hinges turn the pieces, and gravity does the rest.</div></div>
+  <div class="analogy"><span class="ic">🪆</span><p><b>Think of it like</b>An action figure with small motors in the hips and shoulders. Gravity and the floor decide if it walks or falls.</p></div>
+  <div class="sect">
+    <p>The physics engine is <b>Rapier</b>, written in Rust and compiled to WebAssembly, so it runs on the server in JavaScript. The world is 2D, side view, with gravity −9.81 m/s² and a fixed 1/60 s step.</p>
+    <p>The body is a <b>ragdoll</b>: 13 <b>rigid bodies</b> (about 69 kg in total) connected by 12 <b>revolute joints</b>. Every joint has <b>limits</b>, so a knee can never bend backwards even when everyone does everything wrong. <b>Collision groups</b> stop the body from hitting itself: in 2D the left and right legs overlap.</p>
+  </div>
+  <div class="grid2">
+    <div class="panel">
+      <svg viewBox="0 0 300 360" width="100%" role="img" aria-label="Ragdoll with joints and weights">
+        <circle cx="150" cy="40" r="22" fill="var(--head)" stroke="var(--ink)" stroke-width="2.5"/>
+        <path d="M150 40 L172 40 A22 22 0 0 1 150 62 Z M150 40 L128 40 A22 22 0 0 1 150 18 Z" fill="var(--ink)"/>
+        <text x="182" y="38" font-size="10" class="t-muted">head 6 kg</text>
+        <rect x="134" y="70" width="32" height="80" rx="8" fill="none" stroke="var(--torso)" stroke-width="5"/>
+        <text x="174" y="112" font-size="10" class="t-muted">torso 18 kg</text>
+        <rect x="136" y="156" width="28" height="20" rx="6" fill="none" stroke="var(--torso)" stroke-width="4"/>
+        <text x="174" y="171" font-size="10" class="t-muted">pelvis 6 kg</text>
+        <line x1="128" y1="80" x2="100" y2="124" stroke="var(--arm)" stroke-width="8" stroke-linecap="round"/>
+        <line x1="100" y1="124" x2="90" y2="170" stroke="var(--arm)" stroke-width="6" stroke-linecap="round"/>
+        <line x1="172" y1="80" x2="200" y2="124" stroke="var(--arm)" stroke-width="8" stroke-linecap="round"/>
+        <line x1="200" y1="124" x2="210" y2="170" stroke="var(--arm)" stroke-width="6" stroke-linecap="round"/>
+        <line x1="142" y1="182" x2="130" y2="250" stroke="var(--leg)" stroke-width="10" stroke-linecap="round"/>
+        <line x1="130" y1="250" x2="128" y2="318" stroke="var(--leg)" stroke-width="8" stroke-linecap="round"/>
+        <line x1="128" y1="320" x2="108" y2="322" stroke="var(--leg)" stroke-width="6" stroke-linecap="round"/>
+        <line x1="158" y1="182" x2="170" y2="250" stroke="var(--leg)" stroke-width="10" stroke-linecap="round"/>
+        <line x1="170" y1="250" x2="172" y2="318" stroke="var(--leg)" stroke-width="8" stroke-linecap="round"/>
+        <line x1="172" y1="320" x2="192" y2="322" stroke="var(--leg)" stroke-width="6" stroke-linecap="round"/>
+        <text x="196" y="330" font-size="10" class="t-muted">feet grip (friction 2.5)</text>
+        <g stroke="var(--ink)" stroke-width="2">
+          <circle cx="150" cy="64" r="5" fill="var(--panel)"/>
+          <circle cx="128" cy="80" r="6" fill="var(--hazard)"/><circle cx="172" cy="80" r="6" fill="var(--hazard)"/>
+          <circle cx="100" cy="124" r="5" fill="var(--panel)"/><circle cx="200" cy="124" r="5" fill="var(--panel)"/>
+          <circle cx="150" cy="153" r="5" fill="var(--panel)"/>
+          <circle cx="142" cy="182" r="6" fill="var(--hazard)"/><circle cx="158" cy="182" r="6" fill="var(--hazard)"/>
+          <circle cx="130" cy="250" r="5" fill="var(--panel)"/><circle cx="170" cy="250" r="5" fill="var(--panel)"/>
+        </g>
+        <line x1="10" y1="340" x2="290" y2="340" class="floor"/>
+        <circle cx="20" cy="354" r="5" fill="var(--hazard)" stroke="var(--ink)" stroke-width="2"/><text x="30" y="358" font-size="10">operators' motor</text>
+        <circle cx="150" cy="354" r="5" fill="var(--panel)" stroke="var(--ink)" stroke-width="2"/><text x="160" y="358" font-size="10">automatic</text>
+      </svg>
+    </div>
+    <div style="display:grid;gap:14px;align-content:start;min-width:0">
+      <div class="scroll-x">
+      <table>
+        <tr><th>Part</th><th>Operators control</th></tr>
+        <tr><td class="c-leg">Legs</td><td>The hip motor. The knee lifts by itself while the leg swings forward.</td></tr>
+        <tr><td class="c-arm">Arms</td><td>The shoulder motor. The elbow holds a slight bend.</td></tr>
+        <tr><td class="c-torso">Torso</td><td>A lean torque on the torso.</td></tr>
+        <tr><td>Head</td><td>Nobody. It takes the hits.</td></tr>
+      </table>
+      </div>
+      <div class="scroll-x">
+      <table>
+        <tr><th>Joint</th><th>Limits</th></tr>
+        <tr><td>Hip</td><td class="num">−0.8 to +1.7 rad</td></tr>
+        <tr><td>Knee</td><td class="num">−2.3 to 0 rad (one way)</td></tr>
+        <tr><td>Shoulder</td><td class="num">±3.1 rad</td></tr>
+        <tr><td>Elbow</td><td class="num">0 to 2.4 rad</td></tr>
+        <tr><td>Spine · neck</td><td class="num">±0.5 rad</td></tr>
+      </table>
+      </div>
+    </div>
+  </div>
+  <h3>Motors</h3>
+  <p>Operators drive <b>position motors</b>, not raw forces. The group average sets where the hip should point (<code>mean × 1.0 rad</code>), and a force-based motor moves it there: stiffness 8000, damping 400, max force 4000. The target moves at most 6 rad/s, so a group flipping direction can't snap the leg. Zero input means straight legs, so random noise averages out to standing still.</p>
+  <p><b>Why 2D?</b> Cheaper to run, faster to build, and a flailing 2D body is already funny. 3D can come later.</p>
+</article>
+
+<!-- 7 -->
+<article class="chapter" data-ch="7" data-part="Physics" data-title="Walking and balance">
+  <div class="ch-head"><div class="ch-num">CHAPTER 7</div><h2>Walking and balance</h2></div>
+  <div class="oneline"><div class="stripe hazard"></div><div class="txt"><span class="label">In one line</span>There is no walk button. Walking happens when the two leg stations take turns and the torso keeps balance.</div></div>
+  <div class="analogy"><span class="ic">🚲</span><p><b>Think of it like</b>Training wheels. The balance assist stops a fall every second, but you still have to pedal in rhythm.</p></div>
+  <p>A foot planted on the floor, with its leg swinging back, pushes the body forward. Then the legs swap. The knee bends only while its hip is swinging forward, so the moving foot clears the floor.</p>
+  <div class="gait" id="gait"></div>
+  <p>If both legs push forward together, the subject falls on its back. The brain's <span class="mono">LEFT LEG NOW / RIGHT LEG NOW</span> directives set the rhythm. That is why the game needs a brain.</p>
+  <h3>Balance assist</h3>
+  <p>A real ragdoll can't stand. So every tick the server adds a hidden torque that turns the torso and pelvis back toward upright:</p>
+  <pre>torque = −angle × 1000 − angularVelocity × 150     // applied to torso and pelvis</pre>
+  <p>Why 1000? The body is about 69 kg with its weight about 1 m up, so gravity tips it with roughly <code>m·g·h ≈ 680 N·m</code> per radian of lean. Any assist below about 700 can never hold it up.</p>
+  <div class="kscale">
+    <div><b>Too low</b>Impossible. Players give up.</div>
+    <div class="pick"><b>Middle · target</b>It wobbles and stumbles, but a team that works together can walk.</div>
+    <div><b>Too high</b>It never falls, so nothing is funny.</div>
+  </div>
+</article>
+
+<!-- 8 -->
+<article class="chapter" data-ch="8" data-part="Physics" data-title="Falls, the seat, death">
+  <div class="ch-head"><div class="ch-num">CHAPTER 8</div><h2>Falls, the seat, death</h2></div>
+  <div class="oneline"><div class="stripe hazard"></div><div class="txt"><span class="label">In one line</span>After each physics step, the server checks simple rules about where the body really is.</div></div>
+  <div class="analogy"><span class="ic">📏</span><p><b>Think of it like</b>A gymnastics judge: they don't move the gymnast, they only watch positions and decide.</p></div>
+  <p>There are no canned animations. Sitting is not a "sit" animation: the operators have to get the body onto the seat, and the server checks that it's there.</p>
+  <div class="grid2">
+    <div class="panel"><h3 class="c-torso">Fall and get up</h3><p style="font-size:15px;margin-top:6px">Torso leaning more than ~70° for 1.5 s = subject down. Operators hold SPACE; the shared bar fills by how many hold it (over 30% fills it). When full, the body is stood back up. If it fell beside the seat, it stands up 0.6 m before it, so it doesn't overlap the chair.</p></div>
+    <div class="panel"><h3 class="c-hazard">Reach the seat</h3><p style="font-size:15px;margin-top:6px">Pelvis inside the seat area, torso within ~25° of upright, both for 2 s. The trial time is compared with the record, and a new record is saved immediately.</p></div>
+    <div class="panel"><h3>Damage</h3><p style="font-size:15px;margin-top:6px">If the head reaches the floor while moving faster than 3 m/s, integrity drops. The harder the hit, the bigger the drop.</p></div>
+    <div class="panel"><h3>Subject lost</h3><p style="font-size:15px;margin-top:6px">At 0 integrity the life is saved (survival time, cause, seats reached). After 5 s a new subject starts at the start line, and everyone's input is reset to 0.</p></div>
+  </div>
+</article>
+
+<!-- 9 -->
+<article class="chapter" data-ch="9" data-part="Running it live" data-title="The tick loop">
+  <div class="ch-head"><div class="ch-num">CHAPTER 9</div><h2>The tick loop</h2></div>
+  <div class="oneline"><div class="stripe hazard"></div><div class="txt"><span class="label">In one line</span>60 times a second the server reads the wishes, moves the body a little, checks the rules and tells everyone.</div></div>
+  <div class="analogy"><span class="ic">🎞️</span><p><b>Think of it like</b>Film frames. The server makes 60 "frames" of the world each second. Each one is a <b>tick</b>.</p></div>
+  <p>Every tick runs the same steps in the same order. Physics needs equal steps to stay stable; variable steps make joints jitter and explode when the server hiccups. Not everything needs 60 Hz though, so sending is spread out:</p>
+  <div class="panel scroll-x"><svg id="ticksvg" viewBox="0 0 760 110" style="min-width:620px;width:100%" role="img" aria-label="Timeline of 31 ticks"></svg></div>
+<pre>every tick (1/60 s):
+  1. drop operators who went quiet
+  2. average inputs per body part          (chapter 4)
+  3. set the joint motors                  (chapter 6)
+  4. step the physics
+  5. check fall, damage, death             (chapter 8)
+  6. check the seat                        (chapter 8)
+  every 3rd tick:   send body positions    (20 Hz)
+  every 30th tick:  send game info         (2 Hz)
+  every 600th tick: save lives and records (every 10 s)</pre>
+  <div class="note">One full tick (13 bodies, 12 joints, all the rules) takes about <b>0.047 ms</b>, under 0.3% of the 16.7 ms budget. Physics is not the bottleneck. Sending data is.</div>
+</article>
+
+<!-- 10 -->
+<article class="chapter" data-ch="10" data-part="Running it live" data-title="Time and smoothness">
+  <div class="ch-head"><div class="ch-num">CHAPTER 10</div><h2>Time and smoothness</h2></div>
+  <div class="oneline"><div class="stripe hazard"></div><div class="txt"><span class="label">In one line</span>Three clocks keep it fair and smooth: the loop timer, game time, and the browser's drawing time.</div></div>
+  <div class="analogy"><span class="ic">📒</span><p><b>Think of it like</b>A flipbook where only every third page is drawn. Your browser draws the pages in between.</p></div>
+  <div class="grid2">
+    <div class="panel"><h3>1 · Loop timer</h3><p style="font-size:15px;margin-top:6px">A timer fires every ~8 ms. An accumulator collects real elapsed time and runs as many 16.7 ms ticks as fit. A late timer runs two ticks; after a big freeze it runs at most five and drops the rest instead of fast-forwarding.</p></div>
+    <div class="panel"><h3>2 · Game time</h3><p style="font-size:15px;margin-top:6px">Each tick adds exactly 16.67 ms. Every rule uses it: 60 s reassignment, 2 s brain vote, 2 s seat check, 1.5 s fall check, 5 s between subjects, 0.5 s input freshness, survival time. If the server lags, the game slows evenly and no rule is skipped.</p></div>
+  </div>
+  <div class="panel"><h3>3 · Drawing time</h3><p style="font-size:15px;margin-top:6px">Positions arrive 20 times a second, which looks choppy if drawn directly. The browser draws the body <b>100 ms in the past</b>, where it always has an update before and after, and blends between them. Angles blend the short way round (179° to −179° turns 2°, not 358°). The result is smooth 60 fps motion. 100 ms of delay would hurt a shooter; here, 8 people share one leg and nobody notices.</p></div>
+  <h3>What the server sends</h3>
+  <div class="panel scroll-x">
+    <p class="label" style="margin-bottom:10px">Snapshot · about 292 bytes of JSON · 20 per second</p>
+    <div id="bytes" style="display:flex;height:40px;border:1.5px solid var(--ink);font-family:var(--mono);font-size:11px;min-width:620px"></div>
+    <p class="muted mono" style="font-size:12px;margin-top:8px">tick + for each of 13 pieces: x, y, angle (rounded to 3 decimals) + each station's average + get-up bar</p>
+  </div>
+<pre>// game info · JSON · 2 per second
+{ "t": "meta", "players": 12, "queue": 0, "watching": 30,
+  "brain": { "cmd": "WALK_RIGHT", "votes": 1, "of": 2 },
+  "emotes": { "GO": 4 }, "life": 7, "health": 82,
+  "objective": { "name": "REACH THE SEAT", "ms": 48210 },
+  "roster": [...]   // only when someone joins, leaves or is reassigned
+}</pre>
+  <p>The operator list used to be resent twice a second and made up over 40% of all the data sent. Now it goes out only when it changes. Switching to binary was considered and measured: it would save only about 35%, because the JSON is already small.</p>
+</article>
+
+<!-- 11 -->
+<article class="chapter" data-ch="11" data-part="Running it live" data-title="Architecture and data">
+  <div class="ch-head"><div class="ch-num">CHAPTER 11</div><h2>Architecture and data</h2></div>
+  <div class="oneline"><div class="stripe hazard"></div><div class="txt"><span class="label">In one line</span>One Cloudflare Durable Object is the one human: it holds every connection, runs the loop, and stores the records.</div></div>
+  <div class="analogy"><span class="ic">🗳️</span><p><b>Think of it like</b>One referee for the whole world. Cloudflare guarantees there is only ever one.</p></div>
+  <div class="sect">
+    <p>Normal multiplayer games split players across many servers. This one can't: two servers would mean two humans. So it needs a guarantee that exactly one copy of the game runs. <b>Cloudflare Durable Objects</b> give that: <code>idFromName("one-human")</code> returns the same single object from anywhere in the world.</p>
+  </div>
+  <div class="panel scroll-x">
+    <svg viewBox="0 0 760 250" style="min-width:620px;width:100%" role="img" aria-label="Browser to Worker to Durable Object">
+      <defs><marker id="ah3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--hazard)"/></marker></defs>
+      <rect x="20" y="80" width="130" height="60" rx="3" class="box"/><text x="85" y="108" text-anchor="middle" font-size="12">Browsers</text><text x="85" y="125" text-anchor="middle" font-size="10" class="t-muted">page + WebSocket</text>
+      <rect x="220" y="70" width="160" height="80" rx="3" class="box"/><text x="300" y="98" text-anchor="middle" font-size="12" font-weight="600">Worker</text><text x="300" y="117" text-anchor="middle" font-size="10" class="t-muted">/ → game page, /docs</text><text x="300" y="133" text-anchor="middle" font-size="10" class="t-muted">/ws → Durable Object</text>
+      <rect x="450" y="30" width="290" height="190" rx="3" class="box-strong"/>
+      <text x="595" y="56" text-anchor="middle" font-size="13" font-weight="600">Durable Object "one-human"</text>
+      <rect x="468" y="70" width="254" height="66" class="sunk"/>
+      <text x="480" y="90" font-size="11" font-weight="600">Memory · hot state (60×/s)</text>
+      <text x="480" y="107" font-size="10" class="t-muted">body positions · each operator's input</text>
+      <text x="480" y="123" font-size="10" class="t-muted">seats · standby · brain votes · calls</text>
+      <rect x="468" y="146" width="254" height="60" class="sunk"/>
+      <text x="480" y="166" font-size="11" font-weight="600">Storage (SQLite) · durable</text>
+      <text x="480" y="183" font-size="10" class="t-muted">subject number · record · last 50 lives</text>
+      <text x="480" y="198" font-size="10" class="t-muted">saved every 10 s, on records, on death</text>
+      <path d="M150 110 L220 110" class="wire" marker-end="url(#ah3)"/>
+      <path d="M380 110 L450 110" class="wire" marker-end="url(#ah3)"/>
+    </svg>
+  </div>
+  <div class="scroll-x">
+  <table>
+    <tr><th>Data</th><th>Where it lives</th><th>Why</th></tr>
+    <tr><td>Body positions, inputs, seats, votes</td><td>Durable Object memory</td><td>Changes 60 times a second. Not worth saving.</td></tr>
+    <tr><td>Subject number, record, last 50 lives</td><td>Durable Object storage (SQLite)</td><td>Survives restarts and deploys. A few KB.</td></tr>
+    <tr><td>Anything per browser</td><td>Nothing</td><td>No accounts, no cookies.</td></tr>
+  </table>
+  </div>
+  <div class="sect">
+    <p><b>No Redis, no Postgres.</b> The first plan had Redis for live state and crash backups, and Postgres for history. One Durable Object has its own memory and storage, and since there is only one, there is nothing to sync between servers. The history is tiny, so a database server would be overkill. When leaderboards and replays arrive, they can go in SQL tables in the same object or in Cloudflare D1.</p>
+    <p><b>Same code on a laptop.</b> The game is one plain TypeScript class that doesn't know where it runs. Locally it's wrapped by a Node server with a JSON file for storage; on Cloudflare by the Durable Object.</p>
+    <p><b>Costs nothing when empty.</b> The loop starts when the first person connects and stops when the last one leaves.</p>
+    <p><b>One catch:</b> Cloudflare Workers can't compile WebAssembly from bytes at runtime, and Rapier ships its WASM as a base64 string inside its JavaScript. A build script rewrites Rapier's loader to use a precompiled <code>.wasm</code> file instead.</p>
+  </div>
+  <div class="note"><b>Scaling plan.</b> Each player receives roughly 6 KB/s. When one object can't fan out to everyone, gateway objects will hold the sockets and send the main object only a sum and a count per station. An average can be built from partial sums, so the result is identical.</div>
+</article>
+
+<!-- 12 -->
+<article class="chapter" data-ch="12" data-part="The build" data-title="What broke along the way">
+  <div class="ch-head"><div class="ch-num">CHAPTER 12</div><h2>What broke along the way</h2></div>
+  <div class="oneline"><div class="stripe hazard"></div><div class="txt"><span class="label">In one line</span>The ragdoll failed five different ways before it could walk.</div></div>
+  <ol class="list">
+    <li><div><b>It melted into a crouch.</b><span>With the default motor model the joints were too weak to hold the body's weight. Switching to force-based motors made it stand, and then tip over like a statue.</span></div></li>
+    <li><div><b>The statue fell.</b><span>The balance assist was 520, below the ~680 N·m per radian gravity applies. Raised to 1000.</span></div></li>
+    <li><div><b>It did a headstand.</b><span>The assist only pushed the torso, so the pelvis tipped and the body flipped. Now it pushes both, and wraps angles with atan2 so a body near 180° isn't pushed the wrong way.</span></div></li>
+    <li><div><b>It did the splits.</b><span>Holding a key kept moving the hip further, so small random input piled up. Now the group average sets the angle directly.</span></div></li>
+    <li><div><b>It walked backward.</b><span>The knee bent based on where the hip pointed. Bending it only while the hip swings forward made it walk forward: 4.5 m in 20 s.</span></div></li>
+    <li><div><b>Cloudflare refused the physics engine.</b><span>Runtime WebAssembly compilation is blocked. Fixed with the build step from chapter 11. The first version broke on a stray <code>.buffer</code> left by a regex.</span></div></li>
+  </ol>
+  <h3>Questions people ask</h3>
+  <div>
+    <details class="q"><summary>Can trolls ruin it?</summary><p>They can slow it down, not take over. Each limb uses the average, so 30% trolls only make it weaker. Calls count once per person, and everyone is reassigned every 60 seconds.</p></details>
+    <details class="q"><summary>Why not let each browser run its own physics?</summary><p>There would be thousands of slightly different humans, and cheaters could teleport the body. One server with the only copy keeps everyone in the same world.</p></details>
+    <details class="q"><summary>Can a late message from the last subject move the new one?</summary><p>No. WebSockets keep messages in order, each input replaces the last, anything older than 0.5 s is ignored, inputs carry the subject number, and everyone's input is reset when a new subject starts.</p></details>
+    <details class="q"><summary>Isn't there lag?</summary><p>About 0.1–0.2 s. It doesn't matter when 8 people share one leg.</p></details>
+    <details class="q"><summary>What happens when every seat is taken?</summary><p>You wait on standby and watch. When someone leaves, the first person on standby gets their seat.</p></details>
+  </div>
+  <h3>Words used in these docs</h3>
+  <dl class="words">
+    <dt>Authoritative server</dt><dd>The server decides; clients only send wishes.</dd>
+    <dt>WebSocket</dt><dd>A connection that stays open so messages flow both ways.</dd>
+    <dt>Axis</dt><dd>A number from −1 to 1: how hard and which way you push.</dd>
+    <dt>Deadzone</dt><dd>Very small averages count as zero.</dd>
+    <dt>Ragdoll</dt><dd>A body of solid pieces connected by hinges.</dd>
+    <dt>Revolute joint</dt><dd>A hinge that rotates around one point.</dd>
+    <dt>Position motor</dt><dd>A joint motor that drives the joint toward a target angle.</dd>
+    <dt>Tick</dt><dd>One step of the game loop, 1/60 s.</dd>
+    <dt>Interpolation</dt><dd>Drawing in-between frames so motion looks smooth.</dd>
+    <dt>Durable Object</dt><dd>A Cloudflare object with memory and storage, guaranteed to exist once.</dd>
+  </dl>
+</article>
+
+    <div class="progress" aria-hidden="true"><i id="prog"></i></div>
+    <nav class="pager" aria-label="Chapter navigation">
+      <button type="button" id="prev"></button>
+      <button type="button" class="next" id="next"></button>
+    </nav>
+  </main>
+</div>
+
+<script>
+(function () {
+  const NS = 'http://www.w3.org/2000/svg';
+
+  /* chapters */
+  const chapters = Array.from(document.querySelectorAll('article.chapter'));
+  const toc = document.getElementById('toc');
+  let lastPart = null;
+  chapters.forEach((ch, i) => {
+    if (ch.dataset.part !== lastPart) {
+      lastPart = ch.dataset.part;
+      const li = document.createElement('li'); li.className = 'part'; li.textContent = lastPart; toc.appendChild(li);
+    }
+    const li = document.createElement('li');
+    const b = document.createElement('button'); b.type = 'button';
+    b.innerHTML = '<span class="n">' + String(i + 1).padStart(2, '0') + '</span><span></span>';
+    b.lastChild.textContent = ch.dataset.title;
+    b.addEventListener('click', () => show(i, true));
+    li.appendChild(b); toc.appendChild(li);
+    ch._btn = b;
+  });
+  const prev = document.getElementById('prev'), next = document.getElementById('next');
+  const esc = (s) => s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
+  let cur = 0;
+  function show(i, scroll) {
+    cur = Math.max(0, Math.min(chapters.length - 1, i));
+    chapters.forEach((c, j) => { c.hidden = j !== cur; c._btn.setAttribute('aria-current', j === cur ? 'true' : 'false'); });
+    // On phones the chapter list is a horizontal strip: bring the current chapter into view.
+    if (toc.scrollWidth > toc.clientWidth) toc.scrollLeft = chapters[cur]._btn.parentElement.offsetLeft - 8;
+    prev.hidden = cur === 0;
+    next.hidden = cur === chapters.length - 1;
+    if (cur > 0) prev.innerHTML = '<small>Previous</small>' + esc(chapters[cur - 1].dataset.title);
+    if (cur < chapters.length - 1) next.innerHTML = '<small>Next · chapter ' + (cur + 2) + '</small>' + esc(chapters[cur + 1].dataset.title);
+    document.getElementById('prog').style.width = ((cur + 1) / chapters.length * 100) + '%';
+    try { history.replaceState(null, '', '#ch' + (cur + 1)); } catch (e) {}
+    if (scroll) window.scrollTo({ top: 0 });
+  }
+  prev.addEventListener('click', () => show(cur - 1, true));
+  next.addEventListener('click', () => show(cur + 1, true));
+  const m = /^#ch(\d+)$/.exec(location.hash);
+  show(m ? parseInt(m[1], 10) - 1 : 0, false);
+  // Chapters have no element ids, so the browser never jumps to a hidden one; always open at the top.
+  if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+  window.scrollTo(0, 0);
+  document.addEventListener('keydown', (e) => {
+    if (e.target.closest('input,textarea,button')) return;
+    if (e.key === 'ArrowRight') show(cur + 1, true);
+    if (e.key === 'ArrowLeft') show(cur - 1, true);
+  });
+
+  /* aggregation demo */
+  const N = 24;
+  let players = [];
+  const host = document.getElementById('players');
+  const rnd = (a, b) => a + Math.random() * (b - a);
+  const clamp = (v) => Math.max(-1, Math.min(1, v));
+  const scenarios = {
+    noise: () => Array.from({ length: N }, () => ({ axis: rnd(-1, 1), stale: false })),
+    coord: () => Array.from({ length: N }, () => ({ axis: clamp(0.8 + rnd(-0.2, 0.2)), stale: false })),
+    troll: () => Array.from({ length: N }, (_, i) => ({ axis: i % 10 < 3 ? -1 : clamp(0.8 + rnd(-0.15, 0.15)), stale: false })),
+    afk: () => Array.from({ length: N }, (_, i) => ({ axis: i % 2 ? clamp(0.7 + rnd(-0.2, 0.2)) : rnd(-1, 1), stale: i % 2 === 0 })),
+  };
+  let current = 'noise';
+  for (let i = 0; i < N; i++) {
+    const b = document.createElement('button');
+    b.className = 'pl'; b.type = 'button'; b.setAttribute('aria-label', 'Operator ' + (i + 1));
+    b.appendChild(document.createElement('i'));
+    b.addEventListener('click', () => { const p = players[i]; p.stale = false; p.axis = p.axis > 0.05 ? -0.9 : 0.9; render(); });
+    host.appendChild(b);
+  }
+  function render() {
+    const bars = host.children;
+    players.forEach((p, i) => {
+      const el = bars[i].firstChild, h = Math.abs(p.axis) * 50;
+      el.style.height = h + '%';
+      el.style.top = p.axis >= 0 ? (50 - h) + '%' : '50%';
+      el.style.background = p.axis >= 0 ? 'var(--leg)' : 'var(--bad)';
+      bars[i].classList.toggle('stale', p.stale);
+      bars[i].title = p.stale ? 'idle: counts as 0' : 'axis ' + p.axis.toFixed(2);
+    });
+    const act = players.filter((p) => !p.stale), n = act.length;
+    const mean = n ? act.reduce((s, p) => s + p.axis, 0) / n : 0;
+    const sd = n ? Math.sqrt(act.reduce((s, p) => s + (p.axis - mean) ** 2, 0) / n) : 0;
+    const axis = Math.abs(mean) < 0.1 ? 0 : mean;
+    document.getElementById('r-n').textContent = n;
+    document.getElementById('r-mean').textContent = (mean >= 0 ? '+' : '') + mean.toFixed(2);
+    document.getElementById('r-agree').textContent = Math.round(Math.max(0, 1 - sd) * 100) + '%';
+    const deg = axis * 57.3;
+    document.getElementById('r-deg').textContent = Math.round(deg) + '°';
+    document.getElementById('leg').setAttribute('transform', 'rotate(' + (-Math.max(-46, deg)) + ' 90 40)');
+    document.getElementById('shin').setAttribute('transform', 'rotate(' + (Math.max(0, deg) * 0.8) + ' 90 110)');
+    document.getElementById('legtxt').textContent = axis === 0 ? 'still (deadzone)' : axis > 0 ? 'swings forward' : 'swings back';
+  }
+  (function () {
+    const r = 70, a0 = -46 * Math.PI / 180, a1 = 57 * Math.PI / 180;
+    const p = (a) => [90 - r * Math.sin(a), 40 + r * Math.cos(a)];
+    const [x0, y0] = p(a0), [x1, y1] = p(a1);
+    document.getElementById('arc').setAttribute('d', `M${x0} ${y0} A${r} ${r} 0 0 1 ${x1} ${y1}`);
+  })();
+  const sbtns = document.querySelectorAll('[data-s]');
+  sbtns.forEach((b) => b.addEventListener('click', () => {
+    current = b.dataset.s;
+    sbtns.forEach((x) => x.setAttribute('aria-pressed', x === b ? 'true' : 'false'));
+    players = scenarios[current](); render();
+  }));
+  players = scenarios.noise(); render();
+  let timer = null;
+  const jb = document.getElementById('jitter');
+  jb.addEventListener('click', () => {
+    if (timer) { clearInterval(timer); timer = null; jb.setAttribute('aria-pressed', 'false'); return; }
+    jb.setAttribute('aria-pressed', 'true');
+    timer = setInterval(() => { const fresh = scenarios[current](); players = players.map((p, i) => (Math.random() < 0.35 ? fresh[i] : p)); render(); }, 350);
+  });
+
+  /* gait frames */
+  function seg(svg, pts, color, w) {
+    const pl = document.createElementNS(NS, 'polyline');
+    pl.setAttribute('points', pts.map((p) => p.join(',')).join(' '));
+    pl.style.fill = 'none'; pl.style.stroke = color;
+    pl.setAttribute('stroke-width', w); pl.setAttribute('stroke-linecap', 'round'); pl.setAttribute('stroke-linejoin', 'round');
+    svg.appendChild(pl);
+  }
+  function leg(hip, a, bend) {
+    const r = a * Math.PI / 180, L = 26;
+    const knee = [hip[0] + L * Math.sin(r), hip[1] + L * Math.cos(r)];
+    const r2 = r - bend * Math.PI / 180;
+    return [hip, knee, [knee[0] + L * Math.sin(r2), knee[1] + L * Math.cos(r2)]];
+  }
+  function fig(svg, o) {
+    const hip = [60 + o.x, 70], neck = [hip[0] + o.lean, 34];
+    const floor = document.createElementNS(NS, 'line');
+    floor.setAttribute('x1', 4); floor.setAttribute('x2', 116); floor.setAttribute('y1', 124); floor.setAttribute('y2', 124);
+    floor.setAttribute('class', 'floor'); svg.appendChild(floor);
+    seg(svg, leg(hip, o.l, o.lb), 'var(--leg)', 6);
+    seg(svg, leg(hip, o.r, o.rb), 'var(--leg)', 6);
+    seg(svg, [hip, neck], 'var(--torso)', 7);
+    seg(svg, [neck, [neck[0] - 10, neck[1] + 22]], 'var(--arm)', 4);
+    seg(svg, [neck, [neck[0] + 10, neck[1] + 22]], 'var(--arm)', 4);
+    const h = document.createElementNS(NS, 'circle');
+    h.setAttribute('cx', neck[0] + o.lean * 0.3); h.setAttribute('cy', neck[1] - 11); h.setAttribute('r', 9);
+    h.style.fill = 'var(--head)'; h.style.stroke = 'var(--ink)'; h.setAttribute('stroke-width', 1.5); svg.appendChild(h);
+    if (o.arrow) {
+      const t = document.createElementNS(NS, 'text');
+      t.setAttribute('x', 112); t.setAttribute('y', 14); t.setAttribute('text-anchor', 'end'); t.setAttribute('font-size', 10);
+      t.textContent = o.arrow; svg.appendChild(t);
+    }
+  }
+  const frames = [
+    { l: 0, r: 0, lb: 0, rb: 0, lean: 0, x: 0, cap: '1. Standing. No input; the balance assist holds it up.' },
+    { l: 35, r: -20, lb: 45, rb: 0, lean: 5, x: 4, arrow: 'L swings · R pushes', cap: '2. Left station swings forward, so its knee lifts. Right station pushes back.' },
+    { l: 20, r: -30, lb: 0, rb: 0, lean: 5, x: 14, arrow: 'body moves →', cap: '3. The planted foot grips the floor and the body moves forward.' },
+    { l: -25, r: 35, lb: 0, rb: 45, lean: 5, x: 18, arrow: 'swap', cap: '4. Swap: right swings, left pushes. Repeat and it walks.' },
+  ];
+  const gait = document.getElementById('gait');
+  frames.forEach((f, i) => {
+    const fg = document.createElement('figure');
+    const svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('viewBox', '0 0 120 130'); svg.setAttribute('width', '100%');
+    svg.setAttribute('role', 'img'); svg.setAttribute('aria-label', 'Walking step ' + (i + 1));
+    fg.appendChild(svg);
+    const cap = document.createElement('figcaption'); cap.textContent = f.cap; fg.appendChild(cap);
+    gait.appendChild(fg); fig(svg, f);
+  });
+
+  /* tick timeline */
+  const ts = document.getElementById('ticksvg');
+  const x0 = 30, dx = 23;
+  for (let t = 0; t <= 30; t++) {
+    const x = x0 + t * dx, snap = t % 3 === 0, meta = t % 30 === 0;
+    const r = document.createElementNS(NS, 'rect');
+    r.setAttribute('x', x - 4); r.setAttribute('y', 30); r.setAttribute('width', 8); r.setAttribute('height', 22);
+    r.style.fill = meta ? 'var(--brain)' : snap ? 'var(--hazard)' : 'var(--line)';
+    ts.appendChild(r);
+    if (t % 6 === 0) {
+      const tx = document.createElementNS(NS, 'text');
+      tx.setAttribute('x', x); tx.setAttribute('y', 70); tx.setAttribute('text-anchor', 'middle'); tx.setAttribute('font-size', 10);
+      tx.setAttribute('class', 't-muted'); tx.textContent = t; ts.appendChild(tx);
+    }
+  }
+  const lab = (x, y, txt) => { const t = document.createElementNS(NS, 'text'); t.setAttribute('x', x); t.setAttribute('y', y); t.setAttribute('font-size', 11); t.textContent = txt; ts.appendChild(t); };
+  lab(30, 18, 'tick →   each tick = 1/60 s (16.7 ms)');
+  const sw = (x, c, txt) => { const r = document.createElementNS(NS, 'rect'); r.setAttribute('x', x); r.setAttribute('y', 88); r.setAttribute('width', 10); r.setAttribute('height', 10); r.style.fill = c; ts.appendChild(r); lab(x + 16, 97, txt); };
+  sw(30, 'var(--line)', 'physics only');
+  sw(170, 'var(--hazard)', 'physics + send positions (every 3rd)');
+  sw(460, 'var(--brain)', '+ send game info (every 30th)');
+
+  /* snapshot layout */
+  const bytes = document.getElementById('bytes');
+  const add = (w, txt, c, dark) => { const s = document.createElement('span'); s.style.cssText = 'display:flex;align-items:center;justify-content:center;border-right:1px solid var(--ink);white-space:nowrap;flex:' + w + ';background:' + c + ';color:' + (dark ? 'var(--ink)' : '#fff'); s.textContent = txt; bytes.appendChild(s); };
+  add(3, 'tick', 'var(--muted)');
+  ['head', 'torso', 'pelvis', 'uArmL', 'lArmL', 'uArmR', 'lArmR', 'thighL', 'shinL', 'footL', 'thighR', 'shinR', 'footR'].forEach((n) =>
+    add(10, n, n.includes('Arm') ? 'var(--arm)' : /thigh|shin|foot/.test(n) ? 'var(--leg)' : n === 'head' ? 'var(--head)' : 'var(--torso)', n === 'head'));
+  add(8, 'stations', 'var(--sunk)', true);
+})();
+</script>
+</body>
+</html>

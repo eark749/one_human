@@ -30,6 +30,9 @@
   button:active, button.held { background: var(--ink); color: #fff; }
   button:focus-visible { outline: 3px solid var(--hazard); outline-offset: 2px; }
   [hidden] { display: none !important; }
+  .doclink { font-family: var(--mono); font-size: 12px; font-weight: 600; color: var(--ink); text-decoration: underline; text-decoration-color: var(--hazard); text-decoration-thickness: 2px; text-underline-offset: 3px; letter-spacing: 0; text-transform: none; }
+  .doclink:hover { color: var(--hazard); }
+  @media (max-width: 760px) { .brand .doclink { display: none; } }
 
   /* top bar */
   .topbar {
@@ -134,7 +137,7 @@
 <canvas id="c"></canvas>
 
 <header class="topbar">
-  <div class="brand"><b>One Human</b><span>Subject #<span id="life">1</span></span></div>
+  <div class="brand"><b>One Human</b><span>Subject #<span id="life">1</span></span><a class="doclink" href="/docs">How it's built</a></div>
   <div class="order none" id="order"><b id="brainCmd">NO DIRECTIVE</b><small id="brainVotes">the control room is empty</small></div>
   <div class="stats">
     <div class="goal"><div class="label">Objective: reach the seat</div><b id="timer">0:00</b> <span class="help">record <span id="best">—</span></span></div>
@@ -181,6 +184,7 @@
         <div><b>3 · Follow directives</b>Only the brain can see the seat.</div>
       </div>
       <button class="cta" id="join" type="button">Enter the lab</button>
+      <a class="doclink" href="/docs">Read how it's built</a>
     </div>
   </div>
 </div>

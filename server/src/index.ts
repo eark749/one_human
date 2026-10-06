@@ -24,7 +24,9 @@ game.restore(store.load());
 
 const server = http.createServer((req, res) => {
   const url = new URL(req.url ?? '/', 'http://x');
-  const file = path.join(PUBLIC_DIR, url.pathname === '/' ? 'index.html' : url.pathname);
+  // "/" is the game; "/docs" serves docs.html, the same way Cloudflare's asset handling does.
+  const name = url.pathname === '/' ? 'index.html' : path.extname(url.pathname) ? url.pathname : `${url.pathname}.html`;
+  const file = path.join(PUBLIC_DIR, name);
   if (!file.startsWith(PUBLIC_DIR)) {
     res.writeHead(403).end();
     return;
