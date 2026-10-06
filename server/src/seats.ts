@@ -3,6 +3,9 @@ import { makeName } from './names.js';
 
 export type Send = (msg: object) => void;
 
+// Walking needs both legs and the torso; the brain is next most useful.
+const FIRST_FILL: Role[] = ['L_LEG', 'R_LEG', 'TORSO', 'BRAIN', 'L_ARM', 'R_ARM'];
+
 export type Seat = {
   id: number;
   name: string;
@@ -88,8 +91,14 @@ export class Seats {
     return seat;
   }
 
-  /** The open role with the fewest people, counted against its seat count. Ties are random. */
+  /**
+   * First make sure every role has someone, in FIRST_FILL order, so a small group
+   * gets the legs before the arms. After that: the open role with the fewest people,
+   * counted against its seat count. Ties are random.
+   */
   private pickRole(): Role | null {
+    const empty = FIRST_FILL.find((role) => this.inRole(role).length === 0);
+    if (empty) return empty;
     let best: Role[] = [];
     let bestRatio = Infinity;
     for (const role of ROLES) {

@@ -294,7 +294,7 @@ export class Game {
       agreement: this.agreement,
       life: this.life,
       health: Math.max(0, Math.round(this.health)),
-      objective: { name: 'SIT ON THE CHAIR', ms: Math.round(this.now - this.objectiveStart) },
+      objective: { name: 'REACH THE SEAT', ms: Math.round(this.now - this.objectiveStart) },
       best: this.bestSitMs,
       nextRotateMs: Math.max(0, Math.round(ROTATE_MS - (this.now - this.lastRotate))),
     };
