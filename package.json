@@ -5,16 +5,21 @@
   "scripts": {
     "dev": "tsx watch server/src/index.ts",
     "start": "tsx server/src/index.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit && tsc --noEmit -p worker",
+    "cf:prep": "node scripts/build-rapier-worker.mjs",
+    "cf:dev": "npm run cf:prep && wrangler dev",
+    "cf:deploy": "npm run cf:prep && wrangler deploy"
   },
   "dependencies": {
     "@dimforge/rapier2d-compat": "^0.21.0",
     "ws": "^8.22.0"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261006.1",
     "@types/node": "^26.6.4",
     "@types/ws": "^8.18.2",
     "tsx": "^4.23.15",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "wrangler": "^4.147.0"
   }
 }

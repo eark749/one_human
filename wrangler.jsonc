@@ -1,0 +1,13 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "one-human",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-09-01",
+  "assets": { "directory": "./public", "binding": "ASSETS" },
+  "durable_objects": {
+    "bindings": [{ "name": "HUMAN", "class_name": "HumanRoom" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["HumanRoom"] }],
+  // Use the Workers-friendly copy of Rapier (built by scripts/build-rapier-worker.mjs).
+  "alias": { "@dimforge/rapier2d-compat": "./worker/vendor/rapier.mjs" }
+}

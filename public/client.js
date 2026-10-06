@@ -40,6 +40,7 @@
   const me = { id: null, name: '', role: null, joined: false, axis: 0, up: false, brainCmd: null };
   let chairX = 5;
   let meta = null;
+  let roster = [];
   const snaps = []; // { at, b, agg, up, f }
 
   // ---------------- network ----------------
@@ -80,10 +81,15 @@
         updateGroupBar(msg);
         updateFallOverlay(msg);
         break;
-      case 'meta':
+      case 'meta': {
+        // The player list only arrives when it changes; keep the last one.
+        if (msg.roster) roster = msg.roster;
+        const idle = new Set(msg.idle || []);
+        msg.roster = roster.map((r) => ({ ...r, active: !idle.has(r.id) }));
         meta = msg;
         renderMeta();
         break;
+      }
       case 'event':
         onEvent(msg);
         break;

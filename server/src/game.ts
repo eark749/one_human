@@ -1,5 +1,3 @@
-import fs from 'node:fs';
-import path from 'node:path';
 import {
   BRAIN_COMMANDS, CHAIR_X, DEADZONE, DT, EMOTES, INPUT_STALE_MS, META_EVERY, PARTS, ROTATE_MS,
   SAVE_EVERY, SEATS, SNAPSHOT_EVERY, START_X,
@@ -8,10 +6,13 @@ import {
 import { Ragdoll } from './ragdoll.js';
 import { Seats, type Seat, type Send, type Spectator } from './seats.js';
 
-type LifeRecord = { life: number; startedAt: number; endedAt: number; cause: string; sits: number };
-type SavedState = { life: number; bestSitMs: number | null; lives: LifeRecord[] };
+export type LifeRecord = { life: number; startedAt: number; endedAt: number; cause: string; sits: number };
+export type SavedState = { life: number; bestSitMs: number | null; lives: LifeRecord[] };
 
-const DATA_FILE = path.resolve('data/state.json');
+/** Where lives and records are kept: a JSON file on Node, Durable Object storage on Cloudflare. */
+export interface Store {
+  save(state: SavedState): void;
+}
 
 export class Game {
   ragdoll = new Ragdoll();
@@ -45,8 +46,16 @@ export class Game {
   agreement: Record<BodyPart, number> = { L_LEG: 1, R_LEG: 1, L_ARM: 1, R_ARM: 1, TORSO: 1 };
   viewers = 0; // connected but not playing yet, set by the server
 
-  constructor(private broadcast: (msg: object) => void = () => {}, private persist = true) {
-    if (persist) this.load();
+  private lastRosterKey = '';
+
+  constructor(private broadcast: (msg: object) => void = () => {}, private store: Store | null = null) {}
+
+  /** Continue from saved lives and records. */
+  restore(s: SavedState | null) {
+    if (!s) return;
+    this.life = s.life;
+    this.bestSitMs = s.bestSitMs;
+    this.lives = s.lives ?? [];
   }
 
   // ---------- players ----------
@@ -130,7 +139,7 @@ export class Game {
 
     if (this.tick % SNAPSHOT_EVERY === 0) this.broadcast(this.snapshot());
     if (this.tick % META_EVERY === 0) this.broadcast(this.meta());
-    if (this.persist && this.tick % SAVE_EVERY === 0) this.save();
+    if (this.tick % SAVE_EVERY === 0) this.save();
   }
 
   private aggregate() {
@@ -244,7 +253,7 @@ export class Game {
       this.broadcast({ t: 'event', kind: 'newlife', life: this.life });
     };
     this.health = 1; // stop repeat deaths during the pause
-    if (this.persist) this.save();
+    this.save();
   }
 
   // ---------- messages ----------
@@ -260,12 +269,18 @@ export class Game {
     };
   }
 
-  meta() {
+  /** Game info. The player list is only included when it changed, or when `full` is set (new connection). */
+  meta(full = false) {
     const cutoff = this.now - 5000;
     this.emoteLog = this.emoteLog.filter((e) => e.at > cutoff);
     const emotes: Record<string, number> = {};
     for (const e of this.emoteLog) emotes[e.e] = (emotes[e.e] ?? 0) + 1;
-    const roster = this.seats.all.map((s: Seat) => ({ id: s.id, name: s.name, role: s.role, active: this.now - s.lastSeen < 2000 }));
+    const people = this.seats.all;
+    const rosterKey = people.map((s) => `${s.id}:${s.role}`).join(',');
+    const rosterChanged = rosterKey !== this.lastRosterKey;
+    if (!full) this.lastRosterKey = rosterKey;
+    const roster = full || rosterChanged ? people.map((s: Seat) => ({ id: s.id, name: s.name, role: s.role })) : undefined;
+    const idle = people.filter((s) => this.now - s.lastSeen >= 2000).map((s) => s.id);
     return {
       t: 'meta',
       players: this.seats.seats.size,
@@ -273,6 +288,7 @@ export class Game {
       watching: this.viewers,
       seats: SEATS,
       roster,
+      idle,
       brain: { cmd: this.brainCmd, ...this.brainVotes },
       emotes,
       agreement: this.agreement,
@@ -288,26 +304,7 @@ export class Game {
     return [...this.seats.spectators.values()];
   }
 
-  // ---------- persistence ----------
-
-  private load() {
-    try {
-      const s = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8')) as SavedState;
-      this.life = s.life;
-      this.bestSitMs = s.bestSitMs;
-      this.lives = s.lives ?? [];
-    } catch {
-      // first run
-    }
-  }
-
   private save() {
-    const s: SavedState = { life: this.life, bestSitMs: this.bestSitMs, lives: this.lives };
-    try {
-      fs.mkdirSync(path.dirname(DATA_FILE), { recursive: true });
-      fs.writeFileSync(DATA_FILE, JSON.stringify(s, null, 2));
-    } catch (err) {
-      console.error('save failed', err);
-    }
+    this.store?.save({ life: this.life, bestSitMs: this.bestSitMs, lives: this.lives });
   }
 }

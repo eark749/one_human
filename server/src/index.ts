@@ -4,6 +4,7 @@ import path from 'node:path';
 import { WebSocketServer, WebSocket } from 'ws';
 import { initPhysics } from './ragdoll.js';
 import { Game } from './game.js';
+import { FileStore } from './fileStore.js';
 import { CHAIR_X, MAX_MSGS_PER_SEC, TICK_HZ } from './config.js';
 
 const PORT = Number(process.env.PORT ?? 3000);
@@ -14,10 +15,12 @@ await initPhysics();
 
 const sockets = new Set<WebSocket>();
 const playing = new Set<WebSocket>();
+const store = new FileStore();
 const game = new Game((msg) => {
   const data = JSON.stringify(msg);
   for (const ws of sockets) if (ws.readyState === WebSocket.OPEN) ws.send(data);
-});
+}, store);
+game.restore(store.load());
 
 const server = http.createServer((req, res) => {
   const url = new URL(req.url ?? '/', 'http://x');
@@ -44,7 +47,7 @@ wss.on('connection', (ws) => {
   const countViewers = () => (game.viewers = [...sockets].filter((s) => !playing.has(s)).length);
   countViewers();
   reply({ t: 'hello', chairX: CHAIR_X });
-  reply(game.meta());
+  reply(game.meta(true));
 
   let windowStart = Date.now();
   let count = 0;
