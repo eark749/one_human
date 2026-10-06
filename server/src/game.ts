@@ -6,13 +6,16 @@ import {
 import { Ragdoll } from './ragdoll.js';
 import { Seats, type Seat, type Send, type Spectator } from './seats.js';
 
-export type LifeRecord = { life: number; startedAt: number; endedAt: number; cause: string; sits: number };
+export type LifeRecord = { life: number; startedAt: number; endedAt: number; survivedMs: number; cause: string; sits: number };
 export type SavedState = { life: number; bestSitMs: number | null; lives: LifeRecord[] };
 
 /** Where lives and records are kept: a JSON file on Node, Durable Object storage on Cloudflare. */
 export interface Store {
   save(state: SavedState): void;
 }
+
+// How far from the chair the body is placed when it gets up next to it (m).
+const CHAIR_CLEARANCE = 0.6;
 
 export class Game {
   ragdoll = new Ragdoll();
@@ -21,7 +24,8 @@ export class Game {
   now = 0; // simulation clock in ms
 
   life = 1;
-  lifeStartedAt = Date.now();
+  lifeStartedAt = Date.now(); // wall clock, for the history only
+  private lifeStartNow = 0; // game clock: survival time stops while nobody is connected
   sitsThisLife = 0;
   health = 100;
   bestSitMs: number | null = null;
@@ -40,7 +44,7 @@ export class Game {
   brainVotes = { votes: 0, of: 0 };
   private nextBrainTally = 0;
   private lastRotate = 0;
-  private emoteLog: { e: Emote; at: number }[] = [];
+  private emoteLog: { id: number; e: Emote; at: number }[] = [];
 
   agg: Record<BodyPart, number> = { L_LEG: 0, R_LEG: 0, L_ARM: 0, R_ARM: 0, TORSO: 0 };
   agreement: Record<BodyPart, number> = { L_LEG: 1, R_LEG: 1, L_ARM: 1, R_ARM: 1, TORSO: 1 };
@@ -75,9 +79,11 @@ export class Game {
     if (promoted) promoted.send?.({ t: 'role', role: promoted.role });
   }
 
-  input(id: number, axis: number, up: boolean) {
+  input(id: number, axis: number, up: boolean, life?: number) {
     const seat = this.seats.seats.get(id);
     if (!seat) return;
+    // Drop input that was sent for an earlier subject.
+    if (life !== undefined && life !== this.life) return;
     seat.axis = Number.isFinite(axis) ? Math.max(-1, Math.min(1, axis)) : 0;
     seat.up = !!up;
     seat.lastSeen = this.now;
@@ -94,7 +100,9 @@ export class Game {
   emote(id: number, e: string) {
     if (!this.seats.seats.has(id) && !this.seats.spectators.has(id)) return;
     if (!(EMOTES as readonly string[]).includes(e)) return;
-    this.emoteLog.push({ e: e as Emote, at: this.now });
+    // Each player counts once per shout in the window, however often they click.
+    this.emoteLog = this.emoteLog.filter((x) => !(x.id === id && x.e === e));
+    this.emoteLog.push({ id, e: e as Emote, at: this.now });
   }
 
   // ---------- tick ----------
@@ -196,7 +204,9 @@ export class Game {
         this.fallen = false;
         this.fallTimer = 0;
         this.getUp = 0;
-        r.reset(r.pelvis.x);
+        // Standing up inside the chair would make the physics shove the body out.
+        const x = r.pelvis.x;
+        r.reset(Math.abs(x - CHAIR_X) < CHAIR_CLEARANCE ? CHAIR_X - CHAIR_CLEARANCE : x);
         this.broadcast({ t: 'event', kind: 'getup' });
       }
     }
@@ -222,8 +232,11 @@ export class Game {
     if (this.sitTimer >= 2) {
       const ms = Math.round(this.now - this.objectiveStart);
       const record = this.bestSitMs === null || ms < this.bestSitMs;
-      if (record) this.bestSitMs = ms;
       this.sitsThisLife++;
+      if (record) {
+        this.bestSitMs = ms;
+        this.save();
+      }
       this.broadcast({ t: 'event', kind: 'sit', ms, record, players: this.seats.seats.size });
       this.sitTimer = 0;
       this.pausedUntil = this.now + 3000;
@@ -235,16 +248,22 @@ export class Game {
   }
 
   private die(cause: string) {
-    const ended = Date.now();
-    this.lives.push({ life: this.life, startedAt: this.lifeStartedAt, endedAt: ended, cause, sits: this.sitsThisLife });
+    const survivedMs = Math.round(this.now - this.lifeStartNow);
+    this.lives.push({ life: this.life, startedAt: this.lifeStartedAt, endedAt: Date.now(), survivedMs, cause, sits: this.sitsThisLife });
     this.lives = this.lives.slice(-50);
-    this.broadcast({ t: 'event', kind: 'death', life: this.life, cause, ms: ended - this.lifeStartedAt });
+    this.broadcast({ t: 'event', kind: 'death', life: this.life, cause, ms: survivedMs });
     this.pausedUntil = this.now + 5000;
     this.afterPause = () => {
       this.life++;
       this.health = 100;
       this.sitsThisLife = 0;
       this.lifeStartedAt = Date.now();
+      this.lifeStartNow = this.now;
+      // Every subject starts from rest: nobody's old input carries over.
+      for (const seat of this.seats.all) {
+        seat.axis = 0;
+        seat.up = false;
+      }
       this.fallen = false;
       this.fallTimer = 0;
       this.getUp = 0;

@@ -89,7 +89,7 @@ export class HumanRoom extends DurableObject<Env> {
       return;
     }
     if (conn.id === null) return;
-    if (msg?.t === 'in') this.game.input(conn.id, Number(msg.axis), !!msg.up);
+    if (msg?.t === 'in') this.game.input(conn.id, Number(msg.axis), !!msg.up, Number.isInteger(msg.life) ? msg.life : undefined);
     else if (msg?.t === 'brain') this.game.brain(conn.id, String(msg.cmd));
     else if (msg?.t === 'emote') this.game.emote(conn.id, String(msg.e));
   }

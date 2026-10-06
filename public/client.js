@@ -37,7 +37,7 @@
   const colors = {};
   for (const n of ['--leg', '--arm', '--torso', '--brain', '--head', '--hazard', '--hazard-ink', '--ink', '--muted', '--dim', '--line', '--wall', '--tile', '--floor', '--panel']) colors[n] = css(n);
 
-  const me = { id: null, name: '', role: null, joined: false, axis: 0, up: false, brainCmd: null };
+  const me = { id: null, name: '', role: null, joined: false, axis: 0, up: false, brainCmd: null, life: undefined };
   let chairX = 5;
   let meta = null;
   let roster = [];
@@ -87,6 +87,7 @@
         const idle = new Set(msg.idle || []);
         msg.roster = roster.map((r) => ({ ...r, active: !idle.has(r.id) }));
         meta = msg;
+        me.life = msg.life; // also recovers if a newlife event was missed during a reconnect
         renderMeta();
         break;
       }
@@ -136,7 +137,7 @@
     me.axis = computeAxis();
     me.up = keys.has(' ') || held.has('up');
     $('myMark').style.left = `${50 + me.axis * 50}%`;
-    if (me.role && me.role !== 'BRAIN') send({ t: 'in', axis: me.axis, up: me.up });
+    if (me.role && me.role !== 'BRAIN') send({ t: 'in', axis: me.axis, up: me.up, life: me.life });
   }
   addEventListener('keydown', (e) => {
     const k = e.key.toLowerCase();
@@ -153,8 +154,13 @@
     }
   });
   addEventListener('keyup', (e) => {
+    if (e.key === ' ') e.preventDefault(); // stop space from also clicking a focused button
     keys.delete(e.key.toLowerCase());
     pushInput();
+  });
+  // Buttons let go of keyboard focus after a click, so space never re-sends a shout or command.
+  addEventListener('pointerup', () => {
+    if (document.activeElement instanceof HTMLButtonElement) document.activeElement.blur();
   });
   addEventListener('blur', () => {
     keys.clear();
@@ -295,6 +301,12 @@
     } else if (e.kind === 'getup') {
       toast('Subject is back on its feet');
     } else if (e.kind === 'newlife') {
+      // New subject: drop held keys so it starts from rest. Players press again.
+      me.life = e.life;
+      keys.clear();
+      held.clear();
+      document.querySelectorAll('.held').forEach((b) => b.classList.remove('held'));
+      pushInput();
       toast(`Subject #${e.life} enters the chamber`);
     }
   }

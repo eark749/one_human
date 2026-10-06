@@ -72,7 +72,7 @@ wss.on('connection', (ws) => {
       return;
     }
     if (id === null) return;
-    if (msg?.t === 'in') game.input(id, Number(msg.axis), !!msg.up);
+    if (msg?.t === 'in') game.input(id, Number(msg.axis), !!msg.up, Number.isInteger(msg.life) ? msg.life : undefined);
     else if (msg?.t === 'brain') game.brain(id, String(msg.cmd));
     else if (msg?.t === 'emote') game.emote(id, String(msg.e));
   });
